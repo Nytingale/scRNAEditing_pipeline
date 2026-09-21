@@ -96,7 +96,7 @@ This masking is optional and may not be needed with newer tool versions. If in d
 | `--scallele_run_mode` | Variant_Caller | scAllele `--run_mode`: `Variant_Caller`, `Full`, or `Training` |
 | `--scallele_conda` | `/home/yng7/miniforge3/envs/scAllele` | Conda env for SCALLELE only (do not mix into scRNAEditing) |
 | `--snp_subtract_modes` | `off,on` | Benchmark axis for per-sample SNP filtering. `off` = dbSNP only; `on` = dbSNP + the caller's own per-sample genetic-variant blacklist. Only genotyping-capable callers (scallele PASS, gatk/bcftools homozygous-ALT `1/1`) run `on`; reditools3/jacusa2 are `off` only (NA). Outputs/metrics carry a `snp_subtract` label; publishDir gains a `snp_{off,on}/` level. |
-| `--bam_types` | sample,sampleRmDup,sampleUmiDup,recal,recalq20,goodCells,goodCellsRmDup,goodCellsUmiDup,annotated,annotatedRmDup,annotatedUmiDup,celltype,celltypeRmDup,celltypeUmiDup | Comma-separated list of BAM processing types |
+| `--bam_types` | sample,sampleRmDup,sampleUmiDup,<br>recal,recalq20,<br>goodCells,goodCellsRmDup,goodCellsUmiDup,<br>annotated,annotatedRmDup,annotatedUmiDup,<br>celltype,celltypeRmDup,celltypeUmiDup | Comma-separated list of BAM processing types |
 | `--qual` | 30 | Minimum base/mapping quality |
 | `--min_cov` | 10 | Minimum read coverage at a site |
 | `--min_alt` | 3 | Minimum edited (alt) read count at a site, under `--alt_rule count`. See [Alt-read rule](#alt-read-rule-and-the-sensitivity-floor) — this, not `--min_edit_level`, is the real sensitivity threshold |
