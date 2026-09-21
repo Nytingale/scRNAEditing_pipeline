@@ -1,22 +1,20 @@
 # scRNAEditing
 
-Nextflow pipeline for benchmarking A-to-I RNA editing detection in single-cell RNA-seq transcriptomes.
-
-Ng & Tan, 2026 — Nature Methods (NMETH-A66838)
+Nextflow pipeline for benchmarking A-to-I RNA editing detection in single-cell RNA-seq transcriptomes
 
 ## Overview
 
-This pipeline systematically benchmarks variant callers (bcftools, REDItools3, GATK HaplotypeCaller, JACUSA2, scAllele) across multiple BAM processing strategies for detecting adenosine-to-inosine (A-to-I) RNA editing at single-cell resolution.
+This pipeline systematically runs variant callers (BCFtools, REDItools3, GATK HaplotypeCaller, JACUSA2 and scAllele) across multiple BAM processing strategies for detecting adenosine-to-inosine (A-to-I) RNA editing in single-cell transcriptomes. Users may run any combination of the method configurations available.
 
 ### Pipeline steps
 
-1. **Input validation** — Check BAM tags (CR, CB, UB, MD, NH), add MD tag if missing, filter for uniquely mapped reads
-2. **Optional remapping** — STARsolo alignment with platform-aware parameters for 10 sequencing chemistries
+1. **Input validation** — Check BAM tags (CR, CB, UB, MD, NH), add MD tag if missing, filter for uniquely-mapped reads
+2. **Optional remapping** — STARsolo alignment with platform-aware parameters for different sequencing chemistries (10x V2, 10x V3, Smart-seq2, DroNc-seq, Drop-seq, Cel-seq, sci-seq, InDrops)
 3. **Strandedness inference** — RSeQC infer_experiment.py
-4. **BAM type generation** — sample / goodCells / annotated / celltype × none / RmDup / UmiDup, plus recal / recalq20
+4. **BAM type generation** — sample / goodCells / annotated / celltype × unprocessed / RmDup / UmiDup, plus recal / recalq20 / recalDefault
 5. **Variant calling** — All requested caller x BAM type combinations
-6. **Downstream filtering** — Gene-annotation strand assignment, SNP removal, adaptive window optimization
-7. **Per-cell analysis** — Per-cell variant calling and Alu Editing Index (AEI)
+6. **Downstream filtering** — Caller's own strand (only for REDItools3 and JACUSA2), Gene annotation-guided strand assignment otherwise, SNP removal with known list (or also with per sample blacklist only available if using variant callers BCFtools, GATK or scAllele), adaptive window optimization for enrichment of A-to-G mismatches
+7. **Optional per-cell analysis** — Per-cell variant calling and Alu Editing Index (AEI)
 
 ## Quick start
 
