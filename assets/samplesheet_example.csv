@@ -1,0 +1,21 @@
+# Example samplesheet for scRNAEditing pipeline
+# celltype_annot is a 2-column TSV (no header): barcode<TAB>celltype
+# Provide either bam (BAM input) or fastq_r1+fastq_r2 (FASTQ input), not both.
+#
+# Optional: called_barcodes — fallback cell list when no count matrix exists (e.g. Smart-seq2)
+# Optional: count_matrix — STARsolo/CellRanger matrix dir; auto-discovered from BAM if omitted
+# Optional: qc_barcodes — precomputed goodCells list (skips metric QC)
+# Optional: cell_id — required for per-cell BAM platforms (Smart-seq2)
+#
+# Multi-lane / multi-replicate support:
+#   Multiple rows may share the same sample_id (e.g., lanes or GEM wells).
+#   Each row is processed independently through alignment/validation.
+#   Rows with the same sample_id are merged (samtools merge) before downstream steps.
+#   IMPORTANT: Different lanes/GEM wells can reuse cell barcodes — keep BAMs separate
+#   until after merging. Do NOT concatenate FASTQs across lanes.
+sample_id,bam,celltype_annot,called_barcodes,platform,fastq_r1,fastq_r2,cell_id
+PBMC_10xv2,/path/to/PBMC_10xv2.bam,/path/to/PBMC_10xv2_celltypes.tsv,,10xv2,,
+PBMC_10xv3_laneA,/path/to/laneA.bam,/path/to/PBMC_10xv3_celltypes.tsv,,10xv3,,
+PBMC_10xv3_laneA,/path/to/laneB.bam,/path/to/PBMC_10xv3_celltypes.tsv,,10xv3,,
+kidney_dropseq,/path/to/kidney_dropseq.bam,/path/to/kidney_dropseq_celltypes.tsv,,dropseq,,
+cortex_smartseq2,,/path/to/cortex_ss2_celltypes.tsv,,smartseq2,/path/to/cortex_ss2_R1.fastq.gz,/path/to/cortex_ss2_R2.fastq.gz
