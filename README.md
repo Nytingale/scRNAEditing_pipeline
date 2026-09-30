@@ -72,7 +72,7 @@ bash bin/mask_non_actg.sh input.fa > masked.fa
 samtools faidx masked.fa
 ```
 
-This masking is optional and may not be needed with newer tool versions. If in doubt, it is safer to mask.
+This masking is optional and may not be needed with newer tool versions. If in doubt, it is safer to mask. Note that this is NOT soft or hard masking repetitive regions.
 
 ### Recommended
 
