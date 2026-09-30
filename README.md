@@ -1,22 +1,20 @@
 # scRNAEditing
 
-Nextflow pipeline for benchmarking A-to-I RNA editing detection in single-cell RNA-seq transcriptomes.
-
-Ng & Tan, 2026 — Nature Methods (NMETH-A66838)
+Nextflow pipeline for benchmarking A-to-I RNA editing detection in single-cell RNA-seq transcriptomes
 
 ## Overview
 
-This pipeline systematically benchmarks variant callers (bcftools, REDItools3, GATK HaplotypeCaller, JACUSA2, scAllele) across multiple BAM processing strategies for detecting adenosine-to-inosine (A-to-I) RNA editing at single-cell resolution.
+This pipeline systematically runs variant callers (BCFtools, REDItools3, GATK HaplotypeCaller, JACUSA2 and scAllele) across multiple BAM processing strategies for detecting adenosine-to-inosine (A-to-I) RNA editing in single-cell transcriptomes. Users may run any combination of the method configurations available.
 
 ### Pipeline steps
 
-1. **Input validation** — Check BAM tags (CR, CB, UB, MD, NH), add MD tag if missing, filter for uniquely mapped reads
-2. **Optional remapping** — STARsolo alignment with platform-aware parameters for 10 sequencing chemistries
+1. **Input validation** — Check BAM tags (CR, CB, UB, MD, NH), add MD tag if missing, filter for uniquely-mapped reads
+2. **Optional remapping** — STARsolo alignment with platform-aware parameters for different sequencing chemistries (10x V2, 10x V3, Smart-seq2, DroNc-seq, Drop-seq, Cel-seq, sci-seq, InDrops)
 3. **Strandedness inference** — RSeQC infer_experiment.py
-4. **BAM type generation** — sample / goodCells / annotated / celltype × none / RmDup / UmiDup, plus recal / recalq20
+4. **BAM type generation** — sample / goodCells / annotated / celltype × unprocessed / RmDup / UmiDup, plus recal / recalq20 / recalDefault
 5. **Variant calling** — All requested caller x BAM type combinations
-6. **Downstream filtering** — Gene-annotation strand assignment, SNP removal, adaptive window optimization
-7. **Per-cell analysis** — Per-cell variant calling and Alu Editing Index (AEI)
+6. **Downstream filtering** — Caller's own strand (only for REDItools3 and JACUSA2), Gene annotation-guided strand assignment otherwise, SNP removal with known list (or also with per sample blacklist only available if using variant callers BCFtools, GATK or scAllele), adaptive window optimization for enrichment of A-to-G mismatches
+7. **Optional per-cell analysis** — Per-cell variant calling and Alu Editing Index (AEI)
 
 ## Quick start
 
@@ -98,7 +96,7 @@ This masking is optional and may not be needed with newer tool versions. If in d
 | `--scallele_run_mode` | Variant_Caller | scAllele `--run_mode`: `Variant_Caller`, `Full`, or `Training` |
 | `--scallele_conda` | `/home/yng7/miniforge3/envs/scAllele` | Conda env for SCALLELE only (do not mix into scRNAEditing) |
 | `--snp_subtract_modes` | `off,on` | Benchmark axis for per-sample SNP filtering. `off` = dbSNP only; `on` = dbSNP + the caller's own per-sample genetic-variant blacklist. Only genotyping-capable callers (scallele PASS, gatk/bcftools homozygous-ALT `1/1`) run `on`; reditools3/jacusa2 are `off` only (NA). Outputs/metrics carry a `snp_subtract` label; publishDir gains a `snp_{off,on}/` level. |
-| `--bam_types` | sample,sampleRmDup,sampleUmiDup,recal,recalq20,goodCells,goodCellsRmDup,goodCellsUmiDup,annotated,annotatedRmDup,annotatedUmiDup,celltype,celltypeRmDup,celltypeUmiDup | Comma-separated list of BAM processing types |
+| `--bam_types` | sample,sampleRmDup,sampleUmiDup,<br>recal,recalq20,<br>goodCells,goodCellsRmDup,goodCellsUmiDup,<br>annotated,annotatedRmDup,annotatedUmiDup,<br>celltype,celltypeRmDup,celltypeUmiDup | Comma-separated list of BAM processing types |
 | `--qual` | 30 | Minimum base/mapping quality |
 | `--min_cov` | 10 | Minimum read coverage at a site |
 | `--min_alt` | 3 | Minimum edited (alt) read count at a site, under `--alt_rule count`. See [Alt-read rule](#alt-read-rule-and-the-sensitivity-floor) — this, not `--min_edit_level`, is the real sensitivity threshold |
