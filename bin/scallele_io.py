@@ -5,6 +5,7 @@ Modes:
   faidx FASTA
   bam_chroms BAM OUT
   intersect_chroms BAM REQ OUT
+  mapped_reads BAM CHR   -> prints mapped read count on CHR (0 if absent), from the index
   vcf VCF MIN_COV [BLACKLIST_OUT]
         -> TSV on stdout: chr pos ref alt cov_ref cov_alt cov (PASS+LowQual)
         -> if BLACKLIST_OUT given, also append PASS-only SNV sites
@@ -25,6 +26,17 @@ def cmd_bam_chroms(bam_path, out_path):
     bam = pysam.AlignmentFile(bam_path, "rb")
     with open(out_path, "w") as out:
         out.write("\n".join(bam.references) + "\n")
+
+
+def cmd_mapped_reads(bam_path, chrom):
+    import pysam
+    bam = pysam.AlignmentFile(bam_path, "rb")
+    n = 0
+    for s in bam.get_index_statistics():
+        if s.contig == chrom:
+            n = s.mapped
+            break
+    print(n)
 
 
 def cmd_intersect_chroms(bam_path, req_path, out_path):
@@ -132,6 +144,8 @@ def main(argv):
         cmd_bam_chroms(argv[2], argv[3])
     elif mode == "intersect_chroms":
         cmd_intersect_chroms(argv[2], argv[3], argv[4])
+    elif mode == "mapped_reads":
+        cmd_mapped_reads(argv[2], argv[3])
     elif mode == "vcf":
         blacklist_out = argv[4] if len(argv) > 4 else None
         cmd_vcf(argv[2], argv[3], blacklist_out)

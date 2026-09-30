@@ -255,10 +255,18 @@ if (length(qc_override) > 0L) {
     qc_source = if (length(sample_keys) > 0L) "sample_cells" else "called_fallback"
     pool_keys = unique(c(sample_keys, bc_key(called_bc), annot_keys))
     unannotated_keys = setdiff(pool_keys, annot_keys)
-    # No matrix: keep caller/samplesheet cells (Smart-seq2 QC already applied)
+    # No matrix: the uniform nFeature/nCount/pct_mt QC cannot be computed, so
+    # unannotated cells are kept on the strength of the upstream cell list
+    # (called_barcodes / Smart-seq2 cell_ids). Recorded as qc_applied = FALSE.
     good_unannot_keys = unannotated_keys
     fail_unannot_keys = character()
     good_keys = pool_keys
+    if (length(unannotated_keys) > 0L) {
+      warning(sprintf(paste0(
+        "%s: no count matrix, so %d unannotated cell(s) enter goodCells WITHOUT the ",
+        "uniform QC (source=%s). Supply count_matrix in the samplesheet to apply it."),
+        opt$sample, length(unannotated_keys), qc_source))
+    }
   } else {
     qc_source = "annotated_only"
     warning("No count matrix, called_barcodes, or qc_barcodes for ", opt$sample,
@@ -289,6 +297,7 @@ fwrite(metrics_out, opt$output_metrics, sep = "\t")
 summary_dt = data.table(
   sample = opt$sample,
   qc_source = qc_source,
+  qc_applied = qc_source %in% c("matrix", "qc_barcodes"),
   n_annotated = length(annot_keys),
   n_matrix_barcodes = n_matrix_barcodes,
   n_unannotated = length(unannotated_keys),

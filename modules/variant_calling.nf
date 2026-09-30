@@ -163,7 +163,7 @@ process GATK_HAPLOTYPECALLER {
     // needs scales with the scatter width. The escalating-cpus retry that lifts the
     // cgroup cap lives in nextflow.config (`withName: JACUSA2_CALL1|
     // GATK_HAPLOTYPECALLER`) — a config selector would override a `cpus` set here.
-    errorStrategy { task.exitStatus in [137, 140, 143, 104, 71] && task.attempt <= 2 ? 'retry' : 'finish' }
+    errorStrategy { (task.exitStatus == null || task.exitStatus in [137, 140, 143, 104, 71]) && task.attempt <= 2 ? 'retry' : 'finish' }
     maxRetries    2
     publishDir { "${params.outdir}/${meta.id}/03_variants/gatk/${bam_label}" }, mode: 'copy'
 
@@ -323,7 +323,7 @@ process JACUSA2_CALL1 {
     // NB: directives set HERE are overridden whenever nextflow.config carries a
     // matching withLabel/withName selector (verified) — this process takes its
     // cpus/memory/time from `withLabel: process_calling`.
-    errorStrategy { task.exitStatus in [137, 140, 143, 104, 71] ? 'retry' : 'finish' }
+    errorStrategy { (task.exitStatus == null || task.exitStatus in [137, 140, 143, 104, 71]) ? 'retry' : 'finish' }
     maxRetries    3
     publishDir { "${params.outdir}/${meta.id}/03_variants/jacusa2/${bam_label}" }, mode: 'copy'
 
@@ -403,35 +403,46 @@ process JACUSA2_CALL1 {
 }
 
 
-process SCALLELE {
-    tag { "${meta.id}:${bam_label}" }
-    label 'process_calling'
+/*
+ * scAllele, one Nextflow task PER CHROMOSOME (SCALLELE_CHROM) + an ordered
+ * concatenation (SCALLELE_GATHER). Replaces the single 12-cpu task that ran
+ * contigs with xargs -P inside a fixed 48 GB allocation, which OOMed on the
+ * Replogle merged NTC (1.76 B reads) before any contig finished.
+ *
+ * RUNTIME REPORTING: scAllele cost = the SUM of its SCALLELE_CHROM tasks
+ * (realtime, cpu, peak_rss per task) for one sample x bam_label, from the
+ * Nextflow trace (human/scripts/nf_trace_scallele_runtime.R). It is therefore
+ * not measured under the shared process_calling allocation like the other
+ * callers; say so wherever runtimes are compared.
+ *
+ * EDITING DISCOVERY: emit ALL scAllele SNVs (PASS + LowQual) with FILTER, the
+ * INFO varType tag and the read-cluster strand of RNA_EDITING? rows (see
+ * bin/scallele_io.py). PASS is not used: scAllele's GLM was trained on genetic
+ * variants with RNA_EDITING? candidates excluded, so it would score editing
+ * with a classifier that never saw editing. strand_mode 'caller' keeps the
+ * RNA_EDITING? rows with scAllele's own strand; 'annotation' uses all SNVs.
+ * No per-sample SNP blacklist (snp_subtract = on is NA for scAllele).
+ * The raw VCF and scAllele's read-cluster table (index -> strand, span) are
+ * published so parser changes never need a scAllele rerun. The cluster table
+ * gives the read-cluster strand of EVERY SNV (bin/scallele_vcf.py), so caller
+ * mode keeps all mismatch types on scAllele's own strand (2026-09-29).
+ */
+process SCALLELE_CHROM {
+    tag { "${meta.id}:${bam_label}:${chrom}" }
+    label 'process_scallele_chrom'
     // Dedicated env: scAllele 0.0.9.7 needs scipy 1.15 / numpy 1.26;
     // scRNAEditing has scipy 1.17 / numpy 2.x and must not mix.
     conda params.scallele_conda
-    // EDITING DISCOVERY: emit ALL scAllele SNVs (PASS+LowQual). scAllele's GLM
-    // was trained WITHOUT editing, so A-to-I always lands in LowQual — a
-    // PASS-only filter would delete the editing we want. downstream_filter.R
-    // then applies the uniform editing filters (see bin/scallele_io.py).
-    // SNP BLACKLIST: the PASS sites (scAllele's confident genetic variants) are
-    // ALSO emitted as a per-sample SNP blacklist (snp_blacklist output) and
-    // subtracted downstream when --scallele_snp_subtract (default true).
-    // Chr-scatter can peak on the deepest contig; a retry de-parallelises (see
-    // scatter_n) so an OOM is met with lower peak memory at the fixed allocation.
-    errorStrategy { task.exitStatus in [137, 140, 143, 104, 71] ? 'retry' : 'finish' }
-    maxRetries    3
-    publishDir { "${params.outdir}/${meta.id}/03_variants/scallele/${bam_label}" }, mode: 'copy'
 
     input:
-    tuple val(meta), path(bam), path(bai), val(bam_label), val(strandedness)
+    tuple val(meta), path(bam), path(bai), val(bam_label), val(strandedness), val(chrom)
     path fasta
-    path main_chroms
 
     output:
-    tuple val(meta), val('scallele'), val(bam_label),
-          path("${meta.id}_${bam_label}_scallele_variants.txt.gz"), emit: variants
-    tuple val(meta), val('scallele'), val(bam_label),
-          path("${meta.id}_${bam_label}_scallele_snpblacklist.txt.gz"), emit: snp_blacklist
+    tuple val(meta), val(bam_label), val(chrom),
+          path("${meta.id}__${bam_label}__${chrom}.snvs.txt"),
+          path("${meta.id}__${bam_label}__${chrom}.vcf.gz"),
+          path("${meta.id}__${bam_label}__${chrom}.clusters.tsv.gz"), emit: chrom_out
 
     script:
     // Library type matches JACUSA2_CALL1 / RSeQC:
@@ -439,19 +450,12 @@ process SCALLELE {
     def strand_flag = strandedness == 'forward' ? 'fr-secondstrand' :
                       strandedness == 'reverse' ? 'fr-firststrand' : 'fr-unstrand'
     def qual = (meta.qual_override != null) ? meta.qual_override : params.qual
-    def min_cov = params.min_cov
-    def min_alt = params.min_alt
-    def min_edit = params.min_edit_level
-    def run_mode = params.scallele_run_mode
-    // Concurrent contigs = cpus on attempt 1, halving-ish each retry to cut peak
-    // memory (each scAllele worker is single-threaded, so this = worker count).
-    def scatter_n = Math.max(1, (task.cpus / task.attempt).intValue())
+    def pref = "${meta.id}__${bam_label}__${chrom}"
     """
     #!/bin/bash
     set -euo pipefail
 
-    # Work-dir-local FASTA .fai. Staged FASTA is often a symlink; pysam/HTSeq
-    # look beside the staged name (same pattern as REDITOOLS3).
+    # Work-dir-local FASTA .fai (staged FASTA is often a symlink).
     if [ ! -f ${fasta}.fai ]; then
         REALFA=\$(readlink -f ${fasta})
         if [ -n "\$REALFA" ] && [ -f "\${REALFA}.fai" ]; then
@@ -461,34 +465,64 @@ process SCALLELE {
         fi
     fi
 
-    if [ "${main_chroms.name}" != "NO_FILE" ] && [ -f "${main_chroms}" ]; then
-        cp ${main_chroms} _chroms_req.txt
-    else
-        scallele_io.py bam_chroms ${bam} _chroms_req.txt
+    # A contig absent from / unmapped in this BAM has nothing to call.
+    N=\$(scallele_io.py mapped_reads ${bam} ${chrom})
+    if [ "\$N" -eq 0 ]; then
+        : > ${pref}.snvs.txt; : | gzip -c > ${pref}.vcf.gz; : | gzip -c > ${pref}.clusters.tsv.gz
+        echo "scAllele ${pref}: no reads on ${chrom}"
+        exit 0
     fi
-    scallele_io.py intersect_chroms ${bam} _chroms_req.txt _chroms.txt
 
-    # Chr-SCATTER (matches BCFTOOLS_MPILEUP / GATK): scAllele's internal threading
-    # (-n) scales poorly, so instead of the old serial per-chromosome loop we run
-    # one single-threaded (-n 1) scAllele per contig in parallel across the
-    # allocated cpus. Each worker writes per-chr outputs (no shared-file races),
-    # concatenated below in _chroms.txt order. A retry de-parallelises (fewer
-    # concurrent contigs) rather than asking for more slots, so an OOM is met with
-    # lower peak memory at the fixed allocation.
-    grep -vE '^[[:space:]]*\$' _chroms.txt | xargs -P ${scatter_n} -I{} \\
-        scallele_chrom.sh {} ${bam} ${fasta} ${min_cov} ${min_alt} ${min_edit} ${qual} ${strand_flag} ${run_mode}
+    # SCALLELE_STRICT=1: a scAllele failure fails the task (-> retry with more
+    # memory) instead of silently yielding an empty contig.
+    SCALLELE_STRICT=1 scallele_chrom.sh ${chrom} ${bam} ${fasta} ${params.min_cov} ${params.min_alt} \\
+        ${params.min_edit_level} ${qual} ${strand_flag} ${params.scallele_run_mode}
+    mv _snvs_${chrom}.txt ${pref}.snvs.txt
+    mv _vcf_${chrom}.vcf.gz ${pref}.vcf.gz
+    mv _rc_${chrom}.tsv.gz ${pref}.clusters.tsv.gz
+    echo "scAllele ${pref}: \$(wc -l < ${pref}.snvs.txt) SNVs, \$(awk -F'\\t' '\$9 == "RNA_EDITING?"' ${pref}.snvs.txt | wc -l) RNA_EDITING?"
+    """
+}
 
-    # Concatenate per-chromosome outputs in chromosome (file) order.
+process SCALLELE_GATHER {
+    tag { "${meta.id}:${bam_label}" }
+    label 'process_low'
+    publishDir { "${params.outdir}/${meta.id}/03_variants/scallele/${bam_label}" }, mode: 'copy'
+
+    input:
+    tuple val(meta), val(bam_label), val(chroms), path(snvs), path(vcfs), path(clusters)
+    val chrom_order
+
+    output:
+    tuple val(meta), val('scallele'), val(bam_label),
+          path("${meta.id}_${bam_label}_scallele_variants.txt.gz"), emit: variants
+    tuple val(meta), val(bam_label),
+          path("${meta.id}_${bam_label}_scallele.vcf.gz"), emit: vcf
+    tuple val(meta), val(bam_label),
+          path("${meta.id}_${bam_label}_scallele_read_clusters.tsv.gz"), emit: clusters
+
+    script:
+    def order = chrom_order.join(' ')
+    def pref  = "${meta.id}__${bam_label}__"
+    """
+    #!/bin/bash
+    set -euo pipefail
     : > _all_snvs.txt
-    : > _snp_blacklist.txt   # PASS-only genetic-variant sites (chr,pos)
-    while read CHR; do
-        [ -z "\$CHR" ] && continue
-        [ -f "_snvs_\${CHR}.txt" ] && cat "_snvs_\${CHR}.txt" >> _all_snvs.txt
-        [ -f "_bl_\${CHR}.txt" ]   && cat "_bl_\${CHR}.txt"   >> _snp_blacklist.txt
-    done < _chroms.txt
-
+    : > _all.vcf
+    : > _all_rc.tsv
+    for CHR in ${order}; do
+        s="${pref}\${CHR}.snvs.txt"; v="${pref}\${CHR}.vcf.gz"; r="${pref}\${CHR}.clusters.tsv.gz"
+        [ -f "\$s" ] || { echo "ERROR: missing \$s" >&2; exit 1; }
+        [ -f "\$v" ] || { echo "ERROR: missing \$v" >&2; exit 1; }
+        [ -f "\$r" ] || { echo "ERROR: missing \$r" >&2; exit 1; }
+        cat "\$s" >> _all_snvs.txt
+        gzip -cd "\$v" >> _all.vcf
+        # one header (bam_file index chrom strand start end max_coverage), then rows
+        if [ -s _all_rc.tsv ]; then gzip -cd "\$r" | tail -n +2 >> _all_rc.tsv; else gzip -cd "\$r" >> _all_rc.tsv; fi
+    done
     gzip -c _all_snvs.txt > ${meta.id}_${bam_label}_scallele_variants.txt.gz
-    gzip -c _snp_blacklist.txt > ${meta.id}_${bam_label}_scallele_snpblacklist.txt.gz
-    rm -f _all_snvs.txt _snp_blacklist.txt _snvs_*.txt _bl_*.txt _chroms.txt _chroms_req.txt
+    gzip -c _all.vcf > ${meta.id}_${bam_label}_scallele.vcf.gz
+    gzip -c _all_rc.tsv > ${meta.id}_${bam_label}_scallele_read_clusters.tsv.gz
+    rm -f _all_snvs.txt _all.vcf _all_rc.tsv
     """
 }
