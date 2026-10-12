@@ -1,1 +1,3 @@
 assets/whitelists/*.txt
+__pycache__/
+*.pyc
