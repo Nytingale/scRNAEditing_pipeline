@@ -1,22 +1,20 @@
 # scRNAEditing
 
-Nextflow pipeline for benchmarking A-to-I RNA editing detection in single-cell RNA-seq transcriptomes.
-
-Ng & Tan, 2026 — Nature Methods (NMETH-A66838)
+Nextflow pipeline for benchmarking A-to-I RNA editing detection in single-cell RNA-seq transcriptomes
 
 ## Overview
 
-This pipeline systematically benchmarks variant callers (bcftools, REDItools3, GATK HaplotypeCaller, JACUSA2, scAllele) across multiple BAM processing strategies for detecting adenosine-to-inosine (A-to-I) RNA editing at single-cell resolution.
+This pipeline systematically runs variant callers (BCFtools, REDItools3, GATK HaplotypeCaller, JACUSA2, scAllele and cellSNP-lite) across multiple BAM processing strategies for detecting adenosine-to-inosine (A-to-I) RNA editing in single-cell transcriptomes. Users may run any combination of the method configurations available.
 
 ### Pipeline steps
 
-1. **Input validation** — Check BAM tags (CR, CB, UB, MD, NH), add MD tag if missing, filter for uniquely mapped reads
-2. **Optional remapping** — STARsolo alignment with platform-aware parameters for 10 sequencing chemistries
+1. **Input validation** — Check BAM tags (CR, CB, UB, MD, NH), add MD tag if missing, filter for uniquely-mapped reads
+2. **Optional remapping** — STARsolo alignment with platform-aware parameters for different sequencing chemistries (10x V2, 10x V3, Smart-seq2, DroNc-seq, Drop-seq, Cel-seq, sci-seq, InDrops)
 3. **Strandedness inference** — RSeQC infer_experiment.py
-4. **BAM type generation** — sample / goodCells / annotated / celltype × none / RmDup / UmiDup, plus recal / recalq20
-5. **Variant calling** — All requested caller x BAM type combinations
-6. **Downstream filtering** — Gene-annotation strand assignment, SNP removal, adaptive window optimization (clustered-sites window only by default)
-7. **Per-cell analysis** — Per-cell variant calling and Alu Editing Index (AEI)
+4. **BAM type generation** — sample / goodCells / annotated / celltype × unprocessed / RmDup / UmiDup, plus recal / recalq20 / recalDefault
+5. **Variant calling** — All requested caller × BAM type combinations. scAllele and both dedup strategies run as one Nextflow task per chromosome (then gather), so deep BAMs stay within memory.
+6. **Downstream filtering** — Caller's own strand (REDItools3 and JACUSA2; scAllele can keep its read-cluster strand in `caller` mode), gene annotation-guided strand assignment otherwise, SNP removal with a known list (and optionally a per-sample genetic-variant blacklist for BCFtools / GATK only), adaptive window optimization for A-to-G enrichment (clustered-sites window only by default; `--mismatch_window_filter` adds the nearby-mismatch pass)
+7. **Optional per-cell analysis** — Per-cell variant calling and Alu Editing Index (AEI)
 
 ## Quick start
 
@@ -70,7 +68,7 @@ The provided annotation files (gene/Alu GRanges, SNP positions) are **coordinate
 **Ambiguous bases:** Some genome FASTA files contain IUPAC ambiguity codes (R, B, Y, etc.) at certain positions. These can cause false positive mismatches with some variant callers (notably older versions of REDItools). We provide an optional utility to convert non-ACTG bases to N:
 
 ```bash
-bash nextflow/bin/mask_non_actg.sh input.fa > masked.fa
+bash bin/mask_non_actg.sh input.fa > masked.fa
 samtools faidx masked.fa
 ```
 
@@ -93,12 +91,13 @@ This masking is optional and may not be needed with newer tool versions. If in d
 | Parameter | Default | Description |
 |---|---|---|
 | `--remap` | false | Re-align from FASTQs with STARsolo |
-| `--dedup` | coordinate | Deduplication: `none`, `coordinate` (GATK MarkDuplicates with CR tag), or `umi` (umi_tools) |
-| `--callers` | bcftools,reditools3,gatk,jacusa2 | Comma-separated list of variant callers (`scallele` is opt-in: `--callers ...,scallele`) |
+| `--dedup` | `none,coordinate` | Comma-separated dedup strategies to run: `none`, `coordinate` (GATK MarkDuplicates), `umi` (umi_tools). Each requested strategy is chrom-scattered then gathered |
+| `--dedup_cell_tag` | `CR` | Cell barcode tag for dedup grouping: `CR` (raw; recommended) or `CB` (corrected; reads with `CB:Z:-` are dropped) |
+| `--callers` | bcftools,reditools3,gatk,jacusa2 | Comma-separated list of variant callers (`scallele` and `cellsnp` are opt-in: `--callers ...,scallele,cellsnp`) |
 | `--scallele_run_mode` | Variant_Caller | scAllele `--run_mode`: `Variant_Caller`, `Full`, or `Training` |
 | `--scallele_conda` | `/home/yng7/miniforge3/envs/scAllele` | Conda env for SCALLELE only (do not mix into scRNAEditing) |
-| `--snp_subtract_modes` | `off,on` | Benchmark axis for per-sample SNP filtering. `off` = dbSNP only; `on` = dbSNP + the caller's own per-sample genetic-variant blacklist. Only genotyping-capable callers (scallele PASS, gatk/bcftools homozygous-ALT `1/1`) run `on`; reditools3/jacusa2 are `off` only (NA). Outputs/metrics carry a `snp_subtract` label; publishDir gains a `snp_{off,on}/` level. |
-| `--bam_types` | sample,sampleRmDup,sampleUmiDup,recal,recalq20,goodCells,goodCellsRmDup,goodCellsUmiDup,annotated,annotatedRmDup,annotatedUmiDup,celltype,celltypeRmDup,celltypeUmiDup | Comma-separated list of BAM processing types |
+| `--snp_subtract_modes` | `off,on` | Benchmark axis for per-sample SNP filtering. `off` = dbSNP only; `on` = dbSNP + the caller's own per-sample genetic-variant blacklist. Only genotyping callers (gatk / bcftools homozygous-ALT) run `on`; reditools3 / jacusa2 / scallele are `off` only (NA). Outputs carry a `snp_subtract` label; publishDir gains a `snp_{off,on}/` level. |
+| `--bam_types` | sample,sampleRmDup,sampleUmiDup,<br>recal,recalq20,<br>goodCells,goodCellsRmDup,goodCellsUmiDup,<br>annotated,annotatedRmDup,annotatedUmiDup,<br>celltype,celltypeRmDup,celltypeUmiDup | Comma-separated list of BAM processing types |
 | `--qual` | 30 | Minimum base/mapping quality |
 | `--min_cov` | 10 | Minimum read coverage at a site |
 | `--min_alt` | 3 | Minimum edited (alt) read count at a site, under `--alt_rule count`. See [Alt-read rule](#alt-read-rule-and-the-sensitivity-floor) — this, not `--min_edit_level`, is the real sensitivity threshold |
@@ -171,15 +170,21 @@ Cell filter × dedup suffix. `goodCells` is built **before** BAM filtering:
 | `goodCells` → `annotated` | annotation completeness |
 | `annotated` → `celltype` | cell-type resolution |
 
-Without a count matrix (Smart-seq2), the samplesheet `cell_id` list / `called_barcodes` is treated as already QC-filtered. |
+Without a count matrix (Smart-seq2), unannotated cells from `called_barcodes` / `cell_id` enter goodCells without the uniform nFeature/nCount/pct_mt QC (`qc_applied = FALSE` in the summary). Supply `count_matrix` to apply those filters.
+
+Cell-type tier BAMs use meta id `<sample>__<celltype>` so caller/filter publish paths do not collide across cell types of one sample.
 
 ## Deduplication strategies
 
+Coordinate and UMI dedup are **one Nextflow task per chromosome** (plus an `_other` / `_all` bucket), then a gather step. When a BAM pools several GEM wells (`@RG SM`), each well is deduplicated separately inside the chrom task because cell barcodes are unique only within a well.
+
 | Strategy | Flag | Tool | Use case |
 |---|---|---|---|
-| Coordinate-based | `--dedup coordinate` | GATK MarkDuplicates (--BARCODE_TAG CR) | Default; works for all protocols |
-| UMI-aware | `--dedup umi` | umi_tools dedup (--per-cell --cell-tag=CB --umi-tag=UB) | 10x, Drop-seq, and other UMI protocols |
+| Coordinate-based | `--dedup coordinate` | GATK MarkDuplicates (`--BARCODE_TAG` from `--dedup_cell_tag`, default CR) | Works for all protocols; Smart-seq2 per-cell BAMs use a dedicated process |
+| UMI-aware | `--dedup umi` | umi_tools dedup (`--per-cell`, cell tag from `--dedup_cell_tag`, `--umi-tag=UB`) | 10x, Drop-seq, and other UMI protocols |
 | None | `--dedup none` | Passthrough | Skip deduplication entirely |
+
+Default `--dedup none,coordinate` runs both strategies so RmDup BAM types are produced alongside the unprocessed BAMs.
 
 ## Supported platforms (for --remap)
 
@@ -211,14 +216,15 @@ results/
 │   ├── 02_barcode_filtered/    # goodCells / annotated filtered BAMs
 │   ├── 02_gatk_preprocess/     # SplitNCigar + BQSR BAMs
 │   ├── 03_variants/
-│   │   ├── bcftools/{bam_type}/    # bcftools mpileup output
+│   │   ├── bcftools/{bam_type}/    # bcftools mpileup + SNP blacklist
 │   │   ├── reditools3/{bam_type}/  # REDItools3 output
-│   │   ├── gatk/{bam_type}/        # GATK HaplotypeCaller output
+│   │   ├── gatk/{bam_type}/        # GATK HaplotypeCaller + SNP blacklist
 │   │   ├── jacusa2/{bam_type}/     # JACUSA2 call-1 output
-│   │   └── scallele/{bam_type}/    # scAllele SNV TSV (opt-in caller)
+│   │   └── scallele/{bam_type}/    # SNV TSV + raw VCF + read-cluster table (opt-in)
 │   ├── 03_celltype_bams/       # Per-celltype BAMs
 │   ├── 04_filtered/
-│   │   └── {caller}/{bam_type}/    # Filtered sites + summary stats
+│   │   └── {caller}/{bam_type}/{strand_mode}/snp_{off,on}/
+│   │                           # Filtered sites + summary stats
 │   ├── 04_percell_bams/        # Per-cell BAMs
 │   ├── 05_percell_variants/    # Per-cell variant calls
 │   └── 05_percell_aei/         # Per-cell Alu Editing Index
