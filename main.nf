@@ -24,7 +24,7 @@ params.main_chroms     = null    // One-per-line file of chromosomes to analyze 
 params.remap           = false   // Re-align with STARsolo
 params.dedup           = 'none,coordinate'  // Comma-separated dedup strategies to benchmark: 'none', 'coordinate', 'umi'
 params.dedup_cell_tag  = 'CR'          // Cell barcode tag for dedup grouping: 'CR' (raw, recommended) or 'CB' (corrected)
-params.callers         = 'bcftools,reditools3,gatk,jacusa2'  // add scallele via --callers; not default
+params.callers         = 'bcftools,reditools3,gatk,jacusa2'  // add scallele / cellsnp via --callers; not default
 params.bam_types       = 'sample,sampleRmDup,sampleUmiDup,recal,recalq20,goodCells,goodCellsRmDup,goodCellsUmiDup,annotated,annotatedRmDup,annotatedUmiDup,celltype,celltypeRmDup,celltypeUmiDup'
 // Cell-type-level discovery: when true, each merged sample BAM is split by cell
 // type (via celltype_annot) up-front and EACH cell type becomes its own sample
@@ -36,6 +36,9 @@ params.split_by_celltype   = false
 params.min_celltype_cells  = 0   // In split_by_celltype mode, drop cell types with fewer cells (0 = keep all)
 params.qual            = 30      // Base/mapping quality threshold
 params.adaptive_windows = '0,20,40,60,80,100,120,140,160,180,200'
+// Pass 1 of the window step (remove sites with another mismatch type within w1 bp). Off since
+// 2026-10-01: only the clustered-sites pass (w2, searched over adaptive_windows) is applied.
+params.mismatch_window_filter = false
 params.min_cov         = 10      // Minimum read coverage at a site
 params.strand_modes    = 'annotation'  // Strand assignment modes to benchmark: 'annotation', 'hybrid', or 'annotation,hybrid'
 params.strand_ambiguity_threshold = 0.3  // For hybrid mode: read-strand ambiguity cutoff
@@ -66,8 +69,10 @@ params.seq_error_rate        = 0.001   // per-base error under the null, for 'bi
 params.alt_binom_alpha       = 0.05    // significance threshold, for 'binom'
 params.min_alt_floor         = 2       // never accept a single alt read, for 'binom'
 params.jacusa2_min_score     = 1.25    // Minimum JACUSA2 quality score
+params.jacusa2_scatter       = false   // true: JACUSA2 as one task per chromosome (JACUSA2_CHROM + JACUSA2_GATHER) instead of one whole-genome JACUSA2_CALL1 task
 params.scallele_conda        = '/home/yng7/miniforge3/envs/scAllele'
 params.scallele_run_mode     = 'Variant_Caller'  // Variant_Caller | Full | Training
+params.cellsnp_bin           = '/home/yng7/miniforge3/envs/cellsnp/bin/cellsnp-lite'  // cellSNP-lite 1.2.3 (--callers cellsnp; not default)
 params.snp_subtract_modes    = 'off,on'  // Benchmark axis for per-sample SNP filtering. 'off'=dbSNP only; 'on'=dbSNP + caller's own per-sample genetic-variant blacklist. Only genotyping callers (gatk, bcftools) run 'on'; reditools3/jacusa2/scallele are 'off' only (NA).
 params.remove_100pct_editing = true    // Remove sites with 100% editing level
 params.save_intermediates    = 0       // Save intermediate tables from step N onwards (0=off)
@@ -128,6 +133,9 @@ include { BCFTOOLS_MPILEUP     } from './modules/variant_calling'
 include { REDITOOLS3           } from './modules/variant_calling'
 include { GATK_HAPLOTYPECALLER } from './modules/variant_calling'
 include { JACUSA2_CALL1        } from './modules/variant_calling'
+include { JACUSA2_CHROM        } from './modules/variant_calling'
+include { JACUSA2_GATHER       } from './modules/variant_calling'
+include { CELLSNP_LITE         } from './modules/variant_calling'
 include { SCALLELE_CHROM       } from './modules/variant_calling'
 include { SCALLELE_GATHER      } from './modules/variant_calling'
 include { DOWNSTREAM_R         } from './modules/downstream_r'
@@ -929,14 +937,33 @@ workflow {
         // (recaldefault); other callers do not. Mixed only into GATK's input.
         GATK_HAPLOTYPECALLER(ch_all_labeled_bams.mix(ch_gatk_default), genome_fasta, main_chroms)
     }
+    // Scatter units for the per-chromosome callers (scAllele; JACUSA2 with --jacusa2_scatter).
+    def sc_chroms = params.main_chroms
+        ? file(params.main_chroms).readLines().collect { it.trim() }.findAll { it }
+        : file("${params.genome_fasta}.fai", checkIfExists: true).readLines().collect { it.tokenize('\t')[0] }
+    def ch_jacusa2_variants = Channel.empty()
     if ('jacusa2' in requested_callers) {
-        JACUSA2_CALL1(ch_bams_with_strand, genome_fasta, main_chroms)
+        if (params.jacusa2_scatter) {
+            if (!params.main_chroms)
+                log.warn "JACUSA2: no --main_chroms, scattering over all ${sc_chroms.size()} reference contigs"
+            JACUSA2_CHROM(ch_bams_with_strand.combine(Channel.fromList(sc_chroms)), genome_fasta)
+            JACUSA2_GATHER(
+                JACUSA2_CHROM.out.chrom_out
+                    .map { meta, label, chrom, out -> [ groupKey([meta, label], sc_chroms.size()), chrom, out ] }
+                    .groupTuple()
+                    .map { key, chroms, outs -> def k = key.getGroupTarget(); [ k[0], k[1], chroms, outs ] },
+                sc_chroms)
+            ch_jacusa2_variants = JACUSA2_GATHER.out.variants
+        } else {
+            JACUSA2_CALL1(ch_bams_with_strand, genome_fasta, main_chroms)
+            ch_jacusa2_variants = JACUSA2_CALL1.out.variants
+        }
+    }
+    if ('cellsnp' in requested_callers) {
+        CELLSNP_LITE(ch_all_labeled_bams, genome_fasta, main_chroms)
     }
     if ('scallele' in requested_callers) {
         // One task per chromosome, gathered in chromosome order (modules/variant_calling.nf).
-        def sc_chroms = params.main_chroms
-            ? file(params.main_chroms).readLines().collect { it.trim() }.findAll { it }
-            : file("${params.genome_fasta}.fai", checkIfExists: true).readLines().collect { it.tokenize('\t')[0] }
         if (!params.main_chroms)
             log.warn "scAllele: no --main_chroms, scattering over all ${sc_chroms.size()} reference contigs"
         SCALLELE_CHROM(ch_bams_with_strand.combine(Channel.fromList(sc_chroms)), genome_fasta)
@@ -969,8 +996,9 @@ workflow {
     if ('bcftools'    in requested_callers) ch_all_variants = ch_all_variants.mix(join_blacklist.call(BCFTOOLS_MPILEUP.out.variants, BCFTOOLS_MPILEUP.out.snp_blacklist))
     if ('reditools3'  in requested_callers) ch_all_variants = ch_all_variants.mix(REDITOOLS3.out.variants.map { m, c, bl, v -> [ m, c, bl, v, no_blacklist ] })
     if ('gatk'        in requested_callers) ch_all_variants = ch_all_variants.mix(join_blacklist.call(GATK_HAPLOTYPECALLER.out.variants, GATK_HAPLOTYPECALLER.out.snp_blacklist))
-    if ('jacusa2'     in requested_callers) ch_all_variants = ch_all_variants.mix(JACUSA2_CALL1.out.variants.map { m, c, bl, v -> [ m, c, bl, v, no_blacklist ] })
+    if ('jacusa2'     in requested_callers) ch_all_variants = ch_all_variants.mix(ch_jacusa2_variants.map { m, c, bl, v -> [ m, c, bl, v, no_blacklist ] })
     if ('scallele'    in requested_callers) ch_all_variants = ch_all_variants.mix(SCALLELE_GATHER.out.variants.map { m, c, bl, v -> [ m, c, bl, v, no_blacklist ] })
+    if ('cellsnp'     in requested_callers) ch_all_variants = ch_all_variants.mix(CELLSNP_LITE.out.variants.map { m, c, bl, v -> [ m, c, bl, v, no_blacklist ] })
 
     // ── Benchmark axis: per-sample SNP subtraction (off = dbSNP only,
     // on = dbSNP + caller's own blacklist). 'on' only for callers that

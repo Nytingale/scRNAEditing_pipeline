@@ -35,6 +35,9 @@ option_list = list(
   make_option("--main_chroms",    type = "character", default = NULL, help = "File with one chromosome name per line"),
   make_option("--windows",        type = "character", default = "0,20,40,60,80,100,120,140,160,180,200",
               help = "Comma-separated window sizes"),
+  make_option("--mismatch_window_filter", type = "integer", default = 1,
+              help = paste("1 = pass 1 searches w1 over --windows (remove sites with >= 2 mismatch types within w1 bp);",
+                           "0 = w1 fixed at 0, so only the clustered-sites pass (w2) is searched [default 1]")),
   make_option("--min_cov",        type = "integer",   default = 10, help = "Minimum total coverage"),
   make_option("--frac_weight",    type = "double",    default = 1.0, help = "Weight for AG fraction in scoring"),
   make_option("--output_filtered",type = "character", help = "Output filtered sites (gzipped TSV)"),
@@ -101,8 +104,41 @@ complement_vartype = function(vt) {
   paste0(COMP_MAP[substr(vt, 1, 1)], COMP_MAP[substr(vt, 2, 2)])
 }
 
+# REDItools3 `analyze` writes Reference, BaseCount[A,C,G,T] and AllSubs in the
+# forward genomic frame even when Strand is "-". Genomic T>C on minus is RNA A>G.
+# Swap counts A<->T, C<->G and complement ref + varType so the row is in the RNA
+# frame of the current strand. Unstranded (2/*) stay mapped to "+" (plus frame).
+reditools3_complement_frame = function(df, idx) {
+  if (!length(idx)) return(df)
+  tmp = df$counts_A[idx]
+  df$counts_A[idx] = df$counts_T[idx]
+  df$counts_T[idx] = tmp
+  tmp = df$counts_C[idx]
+  df$counts_C[idx] = df$counts_G[idx]
+  df$counts_G[idx] = tmp
+  ref = df$ref[idx]
+  hit = !is.na(ref) & ref %in% names(COMP_MAP)
+  df$ref[idx[hit]] = unname(COMP_MAP[ref[hit]])
+  vt = df$varType[idx]
+  hit = !is.na(vt) & nchar(vt) == 2L
+  df$varType[idx[hit]] = complement_vartype(vt[hit])
+  df
+}
+
+# Keep counts and varType in the RNA frame of the assigned strand.
+apply_strand_flip = function(df, needs_flip) {
+  if (!any(needs_flip)) return(df)
+  if (identical(opt$caller, "reditools3")) {
+    df = reditools3_complement_frame(df, which(needs_flip))
+  } else {
+    df$varType[needs_flip] = complement_vartype(df$varType[needs_flip])
+  }
+  df
+}
+
 numThreads = min(parallel::detectCores(), 8)
 windows    = as.numeric(unlist(strsplit(opt$windows, ",")))
+w1_windows = if (opt$mismatch_window_filter == 1) windows else 0
 
 summary_lines = c()
 log_msg = function(...) {
@@ -327,10 +363,11 @@ if (opt$caller == "bcftools") {
   #   Region Position Reference Strand Coverage MeanQ BaseCount[A,C,G,T] AllSubs
   #   Frequency gCoverage gMeanQ gBaseCount[A,C,G,T] gAllSubs gFrequency
   # BaseCount is a single bracketed, space-padded field, e.g. "[5, 0, 8, 0]" =
-  # per-base A,C,G,T read counts in the SAME (strand-aware) frame as Reference
-  # (verified: char1 of AllSubs == Reference for every single-sub row). Split it
-  # into counts_A/C/G/T and derive varType from ref + the dominant non-ref base
-  # (robust to multi-allelic AllSubs like "AG AT"; mirrors the JACUSA2 branch).
+  # per-base A,C,G,T read counts in the SAME FORWARD GENOMIC frame as Reference
+  # (verified: char1 of AllSubs == Reference for every single-sub row), including
+  # when Strand is "-". Split it into counts_A/C/G/T, derive genomic varType from
+  # ref + the dominant non-ref base (robust to multi-allelic AllSubs like "AG AT";
+  # mirrors the JACUSA2 branch), then convert minus-strand rows into the RNA frame.
   # A legacy pre-split 10-col schema (chr,pos,ref,strand,cov,A,C,G,T,varType) is
   # still accepted for back-compat.
   if (ncol(df) >= 14) {
@@ -367,6 +404,12 @@ if (opt$caller == "bcftools") {
   # so we treat them as "+" from the start — simplifies downstream flip logic
   df$strand = gsub("2", "+", df$strand, fixed = TRUE)
   df$strand = gsub("*", "+", df$strand, fixed = TRUE)
+  minus = which(df$strand == "-")
+  if (length(minus) > 0L) {
+    df = reditools3_complement_frame(df, minus)
+    log_msg("  REDItools3: RNA-frame complement for ", length(minus),
+            " minus-strand rows (ref, counts A<->T C<->G, varType)")
+  }
   df$strand_orig = df$strand
   df$site   = paste0(df$chr, ":", df$pos)
   if (nrow(df) > 0) df$sample = opt$sample
@@ -694,8 +737,8 @@ if (opt$strand_mode == "hybrid" && opt$caller %in% c("bcftools", "gatk") &&
 # would get, and is itself the argument for annotation-based stranding as the
 # default. Gating it away would hide that finding.
 #
-# No varType complement is applied, since strand == strand_orig by construction
-# and the counts frame the caller reported is already consistent with it.
+# No further complement here: strand == strand_orig by construction. Minus-strand
+# REDItools3 rows were already converted to the RNA frame at parse.
 if (identical(opt$strand_mode, "caller")) {
   log_msg("  Caller-native stranding: keeping ", opt$caller, "'s own strand call, ",
           "no annotation override, no sites dropped")
@@ -901,11 +944,8 @@ if (identical(opt$strand_mode, "caller")) {
     df$strand = all_stranded$new_strand[match(df$site, all_stranded$site)]
     df$strand_source = all_stranded$strand_source[match(df$site, all_stranded$site)]
 
-    # Flip varType when strand changed from original
-    needs_flip = (df$strand != df$strand_orig)
-    if (any(needs_flip)) {
-      df$varType[needs_flip] = sapply(df$varType[needs_flip], complement_vartype)
-    }
+    # Flip into the newly assigned strand's RNA frame
+    df = apply_strand_flip(df, df$strand != df$strand_orig)
   }
   rm(plus.annot, minus.annot); gc()
   if (exists("u.merge")) rm(u.merge)
@@ -919,10 +959,7 @@ if (identical(opt$strand_mode, "caller")) {
     if (nrow(df) > 0) {
       df$strand = df$read_strand
       df$strand_source = "read"
-      needs_flip = (df$strand != df$strand_orig)
-      if (any(needs_flip)) {
-        df$varType[needs_flip] = sapply(df$varType[needs_flip], complement_vartype)
-      }
+      df = apply_strand_flip(df, df$strand != df$strand_orig)
     }
   }
 }
@@ -945,7 +982,7 @@ if (nrow(df) == 0) {
   quit(status = 0)
 }
 
-# Compute cov_alt/cov_ref for reditools3 AFTER strand assignment (varType may have been complemented)
+# RNA-frame cov_alt/cov_ref for reditools3 (counts match assigned strand after parse + any flip)
 if (opt$caller == "reditools3" && nrow(df) > 0) {
   var_base = substr(df$varType, 2, 2)
   ref_base = substr(df$varType, 1, 1)
@@ -1006,6 +1043,7 @@ if (nrow(df) == 0) {
 # ── STEP 7: Two-pass adaptive window filtering ──────────────────────────────
 log_msg("STEP 7: Two-pass adaptive window filtering")
 log_msg("  Window sizes: ", paste(windows, collapse = ","))
+log_msg("  Nearby-mismatch filter (pass 1): ", if (opt$mismatch_window_filter == 1) "on, w1 searched" else "off, w1 = 0")
 
 # Pre-compute sitesInWindow for each window size, per chromosome
 work_cols = c("site", "chr", "pos", "varType", "strand", "sample")
@@ -1014,7 +1052,7 @@ df_work$pos = as.numeric(df_work$pos)
 split_chroms = split(df_work, df_work$chr)
 
 siw_cache = list()
-for (w in windows) {
+for (w in w1_windows) {
   cat("  Computing sitesInWindow for window =", w, "...\n")
   if (w == 0) {
     tmp = df_work
@@ -1033,7 +1071,7 @@ for (w in windows) {
 cat("  Testing window combinations...\n")
 combination_results = list()
 idx = 1
-for (w1 in windows) {
+for (w1 in w1_windows) {
   df_w1 = siw_cache[[as.character(w1)]]
   if (w1 != 0) {
     nomm = df_w1[df_w1$uniqueTypesInWindow < 2, ]

@@ -15,9 +15,17 @@ set -uo pipefail
 CHR="$1"; BAM="$2"; FASTA="$3"; QUAL="$4"; MINCOV="$5"
 PILE="_pile_${CHR}.bcf"
 
+# BAMs with more than one @RG SM (Replogle: one per GEM well) must be pooled:
+# otherwise mpileup emits one sample per SM and [%DP]/[%AD] below are printed
+# per sample concatenated without separator, which downstream_filter.R parses
+# as a single garbage DP and the first sample's AD. Single-SM BAMs are unchanged.
+N_SM=$(samtools view -H "$BAM" | awk -F'\t' '/^@RG/ {for (i = 2; i <= NF; i++) if ($i ~ /^SM:/) print substr($i, 4)}' | sort -u | wc -l)
+IGNORE_RG=""
+[ "$N_SM" -gt 1 ] && IGNORE_RG="--ignore-RG"
+
 # Single pileup for this chromosome (-I: skip indels; matches the variant table,
 # and the blacklist keeps SNVs only anyway). Written as BCF, read twice below.
-bcftools mpileup \
+bcftools mpileup $IGNORE_RG \
     -d 100000000 \
     -q "$QUAL" -Q "$QUAL" \
     -r "$CHR" \

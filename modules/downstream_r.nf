@@ -73,6 +73,7 @@ process DOWNSTREAM_R {
     def alu_flag     = alu_annots.name   != 'NO_FILE' ? "--alu_annots ${alu_annots}" : ""
     def chroms_flag  = main_chroms.name  != 'NO_FILE' ? "--main_chroms ${main_chroms}" : ""
     def windows      = params.adaptive_windows
+    def mm_window    = toBool(params.mismatch_window_filter) ? 1 : 0
     def save_int_n   = (params.save_intermediates ?: 0).toString().isInteger() ? (params.save_intermediates).toString().toInteger() : 0
     def intermed     = save_int_n > 0 ? "--save_intermediates ${save_int_n}" : ""
     def ambig_thresh = params.strand_ambiguity_threshold
@@ -103,6 +104,7 @@ process DOWNSTREAM_R {
         ${alu_flag} \\
         ${chroms_flag} \\
         --windows "${windows}" \\
+        --mismatch_window_filter ${mm_window} \\
         --min_cov ${params.min_cov} \\
         --min_alt ${min_alt} \\
         --min_edit_level ${min_edit} \\
@@ -192,6 +194,7 @@ process DOWNSTREAM_R_SCALLELE {
     def alu_flag     = alu_annots.name   != 'NO_FILE' ? "--alu_annots ${alu_annots}" : ""
     def chroms_flag  = main_chroms.name  != 'NO_FILE' ? "--main_chroms ${main_chroms}" : ""
     def windows      = params.adaptive_windows
+    def mm_window    = toBool(params.mismatch_window_filter) ? 1 : 0
     def save_int_n   = (params.save_intermediates ?: 0).toString().isInteger() ? (params.save_intermediates).toString().toInteger() : 0
     def intermed     = save_int_n > 0 ? "--save_intermediates ${save_int_n}" : ""
     def ambig_thresh = params.strand_ambiguity_threshold
@@ -222,6 +225,7 @@ process DOWNSTREAM_R_SCALLELE {
         ${alu_flag} \\
         ${chroms_flag} \\
         --windows "${windows}" \\
+        --mismatch_window_filter ${mm_window} \\
         --min_cov ${params.min_cov} \\
         --min_alt ${min_alt} \\
         --min_edit_level ${min_edit} \\

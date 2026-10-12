@@ -1,5 +1,5 @@
 /*
- * Variant calling modules — bcftools, REDItools3, GATK, JACUSA2, scAllele
+ * Variant calling modules — bcftools, REDItools3, GATK, JACUSA2, cellSNP-lite, scAllele
  *
  * Each caller is run per-chromosome for parallelism where applicable.
  */
@@ -399,6 +399,195 @@ process JACUSA2_CALL1 {
 
     gzip ${meta.id}_${bam_label}_jacusa2.out
     rm -f _main.bed _bamchroms.txt
+    """
+}
+
+
+/*
+ * JACUSA2 call-1, one Nextflow task PER CHROMOSOME (JACUSA2_CHROM) + an ordered
+ * concatenation (JACUSA2_GATHER); used when --jacusa2_scatter true (Replogle).
+ * JACUSA2_CALL1 above is kept unchanged for the teratoma runs (task cache).
+ * The whole-genome task on the Replogle merged NTC sampleRmDup BAM lost one of its
+ * 12 worker threads to java.lang.OutOfMemoryError (36 GB heap, 2026-09-30); the JVM
+ * did not exit, so the task hung with a 0-byte output instead of failing. Per
+ * chromosome, an OOM costs one contig, and -XX:+ExitOnOutOfMemoryError (exit 3)
+ * turns it into a retry with a doubled heap (nextflow.config withName JACUSA2_CHROM).
+ * call-1 scores each site on its own, so the per-chromosome rows equal the
+ * whole-genome rows; the gathered file keeps the whole-genome name and layout
+ * (one ## banner, the #contig header, rows in --main_chroms order).
+ *
+ * RUNTIME REPORTING: like scAllele, JACUSA2 cost on scattered runs = the SUM of
+ * its JACUSA2_CHROM tasks, not one task under the shared process_calling allocation.
+ */
+process JACUSA2_CHROM {
+    tag { "${meta.id}:${bam_label}:${chrom}" }
+
+    input:
+    tuple val(meta), path(bam), path(bai), val(bam_label), val(strandedness), val(chrom)
+    path fasta
+
+    output:
+    tuple val(meta), val(bam_label), val(chrom),
+          path("${meta.id}__${bam_label}__${chrom}.jacusa2.out.gz"), emit: chrom_out
+
+    script:
+    def strand_flag = strandedness == 'forward' ? 'FR-SECONDSTRAND' :
+                      strandedness == 'reverse' ? 'FR-FIRSTSTRAND' : 'UNSTRANDED'
+    def qual = (meta.qual_override != null) ? meta.qual_override : params.qual
+    def min_cov = params.min_cov
+    def pref = "${meta.id}__${bam_label}__${chrom}"
+    // memory and -l mem are set equal in nextflow.config, so task.memory is the enforced cap;
+    // 75% leaves room for non-heap JVM overhead.
+    def heap_gb = Math.max(1, (task.memory.toGiga() * 0.75).intValue())
+    """
+    #!/bin/bash
+    set -euo pipefail
+
+    JACUSA2_JAR=\$(ls \${CONDA_PREFIX:-}/share/jacusa2-*/JACUSA_v*.jar 2>/dev/null | head -n1)
+    if [ -z "\$JACUSA2_JAR" ]; then
+        JACUSA2_JAR=/home/yng7/miniforge3/envs/scRNAEditing/share/jacusa2-2.1.17-0/JACUSA_v2.1.17.jar
+    fi
+    [ -f ${fasta}.fai ] || samtools faidx ${fasta}
+
+    # One-contig BED. A contig missing from the reference or the BAM header has
+    # nothing to call: header-only output, as JACUSA2 writes for an empty contig.
+    awk -v c=${chrom} '\$1 == c { print \$1"\\t0\\t"\$2 }' ${fasta}.fai > _chrom.bed
+    if [ ! -s _chrom.bed ] || ! samtools view -H ${bam} | awk -v c=${chrom} '\$1 == "@SQ" && \$2 == "SN:"c { f = 1 } END { exit !f }'; then
+        printf '#contig\\tstart\\tend\\tname\\tscore\\tstrand\\tbases11\\tinfo\\tfilter\\tref\\n' | gzip -c > ${pref}.jacusa2.out.gz
+        echo "JACUSA2 ${pref}: ${chrom} not in reference / BAM header"
+        exit 0
+    fi
+
+    java -Xmx${heap_gb}G -XX:+ExitOnOutOfMemoryError -jar "\$JACUSA2_JAR" call-1 \\
+        -R ${fasta} \\
+        -c ${min_cov} \\
+        -m ${qual} \\
+        -q ${qual} \\
+        -p ${task.cpus} \\
+        -P ${strand_flag} \\
+        -b _chrom.bed \\
+        -r _jacusa2.out \\
+        ${bam}
+
+    gzip -c _jacusa2.out > ${pref}.jacusa2.out.gz
+    echo "JACUSA2 ${pref}: \$(grep -vc '^#' _jacusa2.out || true) rows"
+    rm -f _jacusa2.out _chrom.bed
+    """
+}
+
+process JACUSA2_GATHER {
+    tag { "${meta.id}:${bam_label}" }
+    label 'process_low'
+    publishDir { "${params.outdir}/${meta.id}/03_variants/jacusa2/${bam_label}" }, mode: 'copy'
+
+    input:
+    tuple val(meta), val(bam_label), val(chroms), path(outs)
+    val chrom_order
+
+    output:
+    tuple val(meta), val('jacusa2'), val(bam_label),
+          path("${meta.id}_${bam_label}_jacusa2.out.gz"), emit: variants
+
+    script:
+    def order = chrom_order.join(' ')
+    def pref  = "${meta.id}__${bam_label}__"
+    """
+    #!/bin/bash
+    set -euo pipefail
+    : > _banner.txt
+    : > _rows.txt
+    for CHR in ${order}; do
+        f="${pref}\${CHR}.jacusa2.out.gz"
+        [ -f "\$f" ] || { echo "ERROR: missing \$f" >&2; exit 1; }
+        [ -s _banner.txt ] || { gzip -cd "\$f" | grep '^##' > _banner.txt || true; }
+        gzip -cd "\$f" | { grep -v '^#' || true; } >> _rows.txt
+    done
+    { cat _banner.txt
+      printf '#contig\\tstart\\tend\\tname\\tscore\\tstrand\\tbases11\\tinfo\\tfilter\\tref\\n'
+      cat _rows.txt; } | gzip -c > ${meta.id}_${bam_label}_jacusa2.out.gz
+    echo "JACUSA2_GATHER ${meta.id}:${bam_label}: \$(wc -l < _rows.txt) rows"
+    rm -f _banner.txt _rows.txt
+    """
+}
+
+
+/*
+ * cellSNP-lite mode 2b: bulk pileup of the whole pseudobulk BAM over the main
+ * chromosomes (--cellTAG None), read counts not UMIs (--UMItag None; the dedup
+ * axis is the bam_type, as for the other callers). REF is the genomic base (-f);
+ * ALT is cellSNP-lite's most frequent non-REF base. No strand output, so rows are
+ * in the genomic (+) frame and only strand_mode 'annotation' applies.
+ * cellSNP-lite has no base-quality filter; --minMAPQ = QUAL.
+ * INFO: AD = ALT reads, DP = REF + ALT reads, OTH = other non-REF reads
+ * (checked against samtools mpileup). Output TSV: chr, pos, ref, alt, cov_ref
+ * (DP - AD), cov_alt (AD), cov (DP + OTH); rows with AD >= 1 only.
+ * Runs the binary from params.cellsnp_bin (own conda env) so samtools from the
+ * pipeline env stays on PATH.
+ */
+process CELLSNP_LITE {
+    tag { "${meta.id}:${bam_label}" }
+    label 'process_calling'
+    publishDir { "${params.outdir}/${meta.id}/03_variants/cellsnp/${bam_label}" }, mode: 'copy'
+
+    input:
+    tuple val(meta), path(bam), path(bai), val(bam_label)
+    path fasta
+    path main_chroms
+
+    output:
+    tuple val(meta), val('cellsnp'), val(bam_label),
+          path("${meta.id}_${bam_label}_cellsnp_variants.txt.gz"), emit: variants
+
+    script:
+    def qual = (meta.qual_override != null) ? meta.qual_override : params.qual
+    def min_cov = params.min_cov
+    """
+    #!/bin/bash
+    set -euo pipefail
+    if [ ! -f ${fasta}.fai ]; then
+        REALFA=\$(readlink -f ${fasta})
+        if [ -n "\$REALFA" ] && [ -f "\${REALFA}.fai" ]; then
+            cp -f "\${REALFA}.fai" ${fasta}.fai
+        else
+            samtools faidx ${fasta}
+        fi
+    fi
+
+    # Same main-chromosome scope as the other callers: --main_chroms (or every
+    # BAM contig) intersected with the BAM header and the reference.
+    if [ "${main_chroms.name}" != "NO_FILE" ] && [ -f "${main_chroms}" ]; then
+        grep -vE '^[[:space:]]*\$' ${main_chroms} > _chroms_req.txt
+    else
+        samtools view -H ${bam} | awk -F'\\t' '\$1=="@SQ"{sub(/^SN:/,"",\$2); print \$2}' > _chroms_req.txt
+    fi
+    samtools view -H ${bam} | awk -F'\\t' '\$1=="@SQ"{sub(/^SN:/,"",\$2); print \$2}' > _chroms_bam.txt
+    awk 'NR==FNR{f[\$1]=1; next} (\$1 in f)' _chroms_bam.txt _chroms_req.txt \\
+        | awk 'NR==FNR{f[\$1]=1; next} (\$1 in f)' <(cut -f1 ${fasta}.fai) - > _chroms.txt
+    CHROMS=\$(paste -sd, _chroms.txt)
+
+    ${params.cellsnp_bin} \\
+        -s ${bam} \\
+        -I ${meta.id} \\
+        -O _csnp \\
+        --chrom "\$CHROMS" \\
+        --cellTAG None \\
+        --UMItag None \\
+        -f ${fasta} \\
+        --minCOUNT ${min_cov} \\
+        --minMAF 0 \\
+        --minMAPQ ${qual} \\
+        -p ${task.cpus} \\
+        --gzip
+
+    gzip -cd _csnp/cellSNP.base.vcf.gz | awk -F'\\t' 'BEGIN{OFS="\\t"} !/^#/ {
+        ad = dp = oth = 0; n = split(\$8, kv, ";")
+        for (i = 1; i <= n; i++) { split(kv[i], p, "=")
+            if (p[1] == "AD") ad = p[2] + 0; else if (p[1] == "DP") dp = p[2] + 0; else if (p[1] == "OTH") oth = p[2] + 0 }
+        r = toupper(\$4); a = toupper(\$5)
+        if (ad >= 1 && r ~ /^[ACGT]\$/ && a ~ /^[ACGT]\$/ && r != a) print \$1, \$2, r, a, dp - ad, ad, dp + oth
+    }' | gzip > ${meta.id}_${bam_label}_cellsnp_variants.txt.gz
+
+    rm -rf _csnp _chroms.txt _chroms_req.txt _chroms_bam.txt
     """
 }
 

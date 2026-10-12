@@ -43,7 +43,7 @@ cat("Found", length(files), "pre100 files\n")
 #   <sample>_<caller>_<bam_type>_<strand_mode>_snp<off|on>_pre100.tsv.gz
 # sample id may contain underscores (e.g. T1_ADAR1_KO), so anchor on the known
 # tail tokens: caller, bam_type, strand_mode, snpX.
-CALLERS = c("bcftools", "reditools3", "gatk", "jacusa2", "scallele")
+CALLERS = c("bcftools", "reditools3", "gatk", "jacusa2", "scallele", "cellsnp")
 parse_combo = function(fn) {
   base = sub("_pre100\\.tsv\\.gz$", "", basename(fn))
   toks = strsplit(base, "_", fixed = TRUE)[[1]]
