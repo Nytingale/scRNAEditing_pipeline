@@ -1023,12 +1023,13 @@ workflow {
     ch_barcode_base_bams = ch_base_bams
         .map { meta, bam, bai -> [ meta.id, meta, bam, bai ] }
         .combine(
-            ch_barcode_samples.map { meta, bams, bais, annot, called_bc, cell_ids -> [ meta.id ] },
+            ch_barcode_samples.map { meta, bams, bais, annot, called_bc, cell_ids -> [ meta.id, called_bc ?: file('NO_FILE') ] },
             by: 0
         )
-        .map { id, meta, bam, bai -> [ meta, bam, bai ] }
+        .map { id, meta, bam, bai, called_bc -> [ meta, bam, bai, called_bc ] }
 
-    SINTO_SPLIT_PERCELL(ch_barcode_base_bams.map { m, b, bi -> [ m, b, bi, file('NO_FILE') ] })
+    // Without called barcodes sinto opens one file per background barcode (> 250k in 10x BAMs).
+    SINTO_SPLIT_PERCELL(ch_barcode_base_bams)
     PERCELL_MPILEUP(
         SINTO_SPLIT_PERCELL.out.percell_bams,
         genome_fasta

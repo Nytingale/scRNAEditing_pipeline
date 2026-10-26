@@ -46,6 +46,8 @@ PM = file.path(B, "human/pm")
 DEF = list(arm = "results_gt_v6", sample = "results_gt_persample_v6", celltype = "results_gt_celltype_v6")
 UNIT_RE = list(arm = "^NTC_ctrl$", sample = "^T[0-9]+_NTC_ctrl$", celltype = "^NTC_ctrl__")
 stopifnot(TIER %in% names(DEF))
+# GT_UNIT_RE: unit-directory regex for other datasets (aorta: arm ^CTRL$, sample ^Control_)
+if (nzchar(Sys.getenv("GT_UNIT_RE"))) UNIT_RE[[TIER]] = Sys.getenv("GT_UNIT_RE")
 RES = if (length(args) >= 2) args[2] else file.path(PM, DEF[[TIER]])
 OUT = if (length(args) >= 3) args[3] else file.path(PM, "gt_eval_v7", "scoring", TIER)
 CALL_RE = if (length(args) >= 4) args[4] else "_pre100\\.tsv\\.gz$"
