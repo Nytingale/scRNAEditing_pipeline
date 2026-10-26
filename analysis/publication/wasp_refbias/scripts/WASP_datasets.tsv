@@ -1,0 +1,5 @@
+dataset	label	species	platform	topology	libtype	aligner	mincov	n_units	notes
+jzlxv3	Human PBMC, 10x 3' v3	human	10xv3	barcoded	forward	starsolo	20	4	4 libraries, one donor. The original R2.M4 diagnostic.
+jzlss2	Human PBMC, Smart-seq2	human	smartseq2	plate	unstranded	star	20	768	One BAM per cell. Full-length paired-end, no UMI.
+jzl10x	Human PBMC, 10x 3' v2	human	10xv2	barcoded	forward	starsolo	20	20	Not yet WASP-realigned.
+jzlcel	Human PBMC, CEL-Seq2	human	celseq2	barcoded	forward	starsolo	20	8	Not yet WASP-realigned.

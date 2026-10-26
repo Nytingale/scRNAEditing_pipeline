@@ -1,0 +1,80 @@
+name: container
+
+# Builds containers/Dockerfile and pushes it to ghcr.io/nytingale/scrnaediting.
+# A release tag (v*) publishes that version; manual runs publish the branch name.
+on:
+  push:
+    tags: ['v*']
+    paths-ignore: ['**.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/nytingale/scrnaediting
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      # The image is ~6 GB; the runner starts with ~14 GB free.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          df -h /
+
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=ref,event=branch
+
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: containers/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Smoke test
+        run: |
+          docker run --rm ${{ env.IMAGE }}@${{ steps.build.outputs.digest }} bash -c '
+            set -e
+            samtools --version | head -1
+            bcftools --version | head -1
+            STAR --version
+            gatk --version | head -2
+            ls $CONDA_PREFIX/share/jacusa2-*/JACUSA_v*.jar
+            python -m reditools analyze --help >/dev/null
+            scAllele --help >/dev/null
+            cellsnp-lite --version
+            umi_tools --version
+            sinto --version
+            /opt/conda/envs/gt_pileup/bin/samtools --version | head -1
+            /opt/conda/envs/refbuild/bin/bedtools --version
+            PATH=/opt/conda/envs/refbuild/bin:$PATH gtf2bed --version 2>&1 | grep version
+            Rscript -e "for (p in c(\"data.table\",\"GenomicRanges\",\"Seurat\",\"DoubletFinder\",\"ggplot2\")) cat(p, as.character(packageVersion(p)), \"\n\")"
+            nextflow -version | grep version
+          '
+
+      - name: Digest
+        run: |
+          echo "Pushed ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}" | tee -a "$GITHUB_STEP_SUMMARY"

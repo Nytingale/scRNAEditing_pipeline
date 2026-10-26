@@ -98,20 +98,9 @@ process PERCELL_AEI {
 
 
 /*
- * Per-cell de novo discovery (Reviewer 2, major 2/4).
- *
- * Consumes PRE-SPLIT per-cell BAMs (from SINTO_SPLIT_PERCELL, sorted+indexed):
- * iterate each cell BAM directly and run the chosen caller on it. This avoids
- * the previous O(cells x whole-BAM) re-scan (samtools view -d CB per barcode),
- * which made per-cell calling take ~4 min/cell (~10 days/sample).
- *
- * All 5 callers: bcftools, reditools3, gatk, jacusa2, scallele. Hypothesis:
- * pileup callers collapse per single cell (sparsity + ref bias); scAllele local
- * reassembly may recover A>G. downstream_filter_percell.R then applies the SAME
- * editing filters per cell at default + relaxed thresholds (loads GRanges once).
- *
- * NOTE: per-cell AEI (RNAEditingIndexer) is handled separately by PERCELL_AEI
- * (Step 6); it is intentionally NOT duplicated here.
+ * Per-cell discovery on the pre-split per-cell BAMs (SINTO_SPLIT_PERCELL) with any of
+ * the five callers; bin/downstream_filter_percell.R applies the editing filters per
+ * cell. Per-cell AEI is PERCELL_AEI (step 6).
  */
 process PERCELL_CALLING {
     tag { "${meta.id}:${params.percell_caller}" }
@@ -149,7 +138,8 @@ process PERCELL_CALLING {
     # Resolve JACUSA2 jar once (jacusa2 branch only).
     JACUSA2_JAR=\$(ls \${CONDA_PREFIX:-}/share/jacusa2-*/JACUSA_v*.jar 2>/dev/null | head -n1)
     if [ -z "\$JACUSA2_JAR" ]; then
-        JACUSA2_JAR=/home/yng7/miniforge3/envs/scRNAEditing/share/jacusa2-2.1.17-0/JACUSA_v2.1.17.jar
+        echo "ERROR: no JACUSA_v*.jar under \${CONDA_PREFIX:-<no conda env>}/share/jacusa2-*/ (install jacusa2 into the env)" >&2
+        exit 1
     fi
 
     RAW_TSV="\$TMPWORK/raw_percell_variants.tsv"

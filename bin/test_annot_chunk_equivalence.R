@@ -21,8 +21,8 @@ suppressPackageStartupMessages({
 })
 
 args <- commandArgs(trailingOnly = TRUE)
-ANNOT <- if (length(args) >= 1) args[1] else
-  "/illumina-isi03/scratch/deep_learning/yng7/scRNAEditing/annotations/annotation_files/extended_annots_GRCh38_analysis_set.RData"
+if (length(args) < 1) stop("Usage: Rscript test_annot_chunk_equivalence.R <strand_annots.RData> [N_SITES]")
+ANNOT <- args[1]
 N_SITES <- if (length(args) >= 2) as.integer(args[2]) else 300000L
 
 stopifnot(file.exists(ANNOT))

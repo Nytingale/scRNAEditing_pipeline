@@ -7,7 +7,7 @@
 # named in a task script: downstream_filter.R is named in the REDITOOLS3,
 # GATK_HAPLOTYPECALLER and JACUSA2_CALL1 scripts, so editing it invalidates
 # those callers' cache. Keep every non-scAllele change in sync with
-# downstream_filter.R.
+# downstream_filter_v8.R (the copy DOWNSTREAM_R runs since 2026-10-20).
 options(scipen = 999)
 suppressPackageStartupMessages({
   library(optparse)
@@ -38,6 +38,9 @@ option_list = list(
   make_option("--mismatch_window_filter", type = "integer", default = 1,
               help = paste("1 = pass 1 searches w1 over --windows (remove sites with >= 2 mismatch types within w1 bp);",
                            "0 = w1 fixed at 0, so only the clustered-sites pass (w2) is searched [default 1]")),
+  make_option("--clustered_filter", type = "integer", default = 0,
+              help = paste("1 = pass 2 searches w2 over --windows jointly with w1 (keep sites with another site within w2 bp);",
+                           "0 = w2 fixed at 0: pass 2 off, w1 chosen on pass 1 alone, outputs = pass-1 sites [default 0]")),
   make_option("--min_cov",        type = "integer",   default = 10, help = "Minimum total coverage"),
   make_option("--frac_weight",    type = "double",    default = 1.0, help = "Weight for AG fraction in scoring"),
   make_option("--output_filtered",type = "character", help = "Output filtered sites (gzipped TSV)"),
@@ -92,7 +95,29 @@ option_list = list(
   make_option("--snp_subtract_label", type = "character", default = "off",
               help = "Benchmark-axis label recorded in outputs: 'off' (dbSNP only), 'on' (dbSNP + per-sample blacklist), or 'NA' (caller cannot genotype). [default off]")
 )
+option_list = c(option_list, list(
+  make_option("--chunk_out", type = "character", default = NULL,
+              help = "Chunk mode: run steps 0-6 on this input chunk, save its step-6 table and tallies to this RDS, stop"),
+  make_option("--chunk_in", type = "character", default = NULL,
+              help = "Merge mode: file listing chunk RDS paths in input order; skip steps 0-6 and continue at step 7")
+))
 opt = parse_args(OptionParser(option_list = option_list))
+
+# Inputs >= DF_CHUNK_MIN_MB (default 200) run through downstream_filter_chunked.sh: steps 0-6 per chunk of whole
+# chromosomes, then steps 7-9 once on the merged step-6 table, so peak memory follows the largest chunk, not the
+# input. Same outputs as one run. DF_CHUNK=0 disables; intermediates of steps 1-3 need one run.
+if (is.null(opt$chunk_in) && is.null(opt$chunk_out) && Sys.getenv("DF_CHUNK", "1") != "0" &&
+    !(opt$save_intermediates %in% 1:3) && !is.null(opt$input) &&
+    isTRUE(file.size(opt$input) >= as.numeric(Sys.getenv("DF_CHUNK_MIN_MB", "200")) * 1e6)) {
+  self = normalizePath(sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE)[1]))
+  wrapper = c(Sys.getenv("DF_CHUNK_WRAPPER"), file.path(dirname(self), "downstream_filter_chunked.sh"),
+              unname(Sys.which("downstream_filter_chunked.sh")))
+  wrapper = wrapper[nzchar(wrapper) & file.exists(wrapper)][1]
+  if (!is.na(wrapper)) {
+    Sys.setenv(DF_RSCRIPT = file.path(R.home("bin"), "Rscript"))
+    quit(status = system2("bash", shQuote(c(wrapper, self, commandArgs(TRUE)))), save = "no")
+  }
+}
 
 # ── Constants ────────────────────────────────────────────────────────────────
 BASES    = c("A", "C", "G", "T")
@@ -136,9 +161,19 @@ apply_strand_flip = function(df, needs_flip) {
   df
 }
 
-numThreads = min(parallel::detectCores(), 8)
+numThreads = min(as.integer(Sys.getenv("NSLOTS", parallel::detectCores())), 8)
+
+# mclapply returns NULL for a forked child that died (e.g. OOM-killed) with only a
+# warning, and rbindlist silently drops it, losing that chromosome's sites.
+safe_mclapply = function(X, FUN, ...) {
+  res = mclapply(X, FUN, ...)
+  bad = vapply(res, function(r) is.null(r) || inherits(r, "try-error"), logical(1))
+  if (any(bad)) stop("mclapply worker failed for: ", paste(names(X)[bad], collapse = ","))
+  res
+}
 windows    = as.numeric(unlist(strsplit(opt$windows, ",")))
 w1_windows = if (opt$mismatch_window_filter == 1) windows else 0
+w2_windows = if (opt$clustered_filter == 1) windows else 0
 
 summary_lines = c()
 log_msg = function(...) {
@@ -147,7 +182,17 @@ log_msg = function(...) {
   summary_lines <<- c(summary_lines, msg)
 }
 
+CHUNK_TBLS = c("tbl.raw", "tbl.noSNP", "tbl.stranded", "tbl.editCov")
+save_chunk = function(d) {
+  saveRDS(list(df = d, tbls = mget(CHUNK_TBLS, envir = globalenv(), ifnotfound = list(NULL)), log = summary_lines),
+          opt$chunk_out)
+}
+
 write_empty_stepwise = function() {
+  if (!is.null(opt$chunk_out)) {
+    save_chunk(NULL)
+    return(invisible(NULL))
+  }
   if (!is.null(opt$output_stepwise)) {
     empty_df = data.frame(varType = character(), n = integer(), percent = numeric(),
                           totalSites = integer(), setType = character(),
@@ -280,6 +325,8 @@ processAnnotatedBED = function(df) {
   as.data.frame(df)
 }
 
+if (is.null(opt$chunk_in)) {
+
 # ── STEP 0: Read input ──────────────────────────────────────────────────────
 log_msg("=== Downstream filter: ", opt$caller, " | sample: ", opt$sample,
         " | strand_mode: ", opt$strand_mode, " ===")
@@ -386,6 +433,7 @@ if (opt$caller == "bcftools") {
                      "counts_A", "counts_C", "counts_G", "counts_T", "varType")
   }
   df$cov = suppressWarnings(as.numeric(df$cov))
+  df = df[!is.na(df$cov) & df$cov >= opt$min_cov, ]
   # varType = ref + dominant non-ref base (from per-base counts)
   cnt_mat = as.matrix(df[, c("counts_A", "counts_C", "counts_G", "counts_T")])
   colnames(cnt_mat) = BASES
@@ -532,9 +580,14 @@ if (opt$caller == "bcftools") {
     if (n_tag_unoriented > 0)
       log_msg("  WARNING: ", n_tag_unoriented, " RNA_EDITING? rows have no '+'/'-' strand and are dropped")
     untag_strand = df$scallele_strand[df$scallele_vartype != "RNA_EDITING?"]
-    if (length(untag_strand) > 0 && all(untag_strand == "."))
-      stop("scallele caller mode: no untagged SNV has a read-cluster strand; ",
-           "the variant file predates the 2026-09-29 read-cluster parser")
+    # Exit 3 (module errorStrategy 'ignore'): the configuration does not exist for this input. Either the variant
+    # file predates the 2026-09-29 read-cluster parser or the library is unstranded (Smart-seq2), where scAllele
+    # orients only its RNA_EDITING? calls.
+    if (length(untag_strand) > 0 && all(untag_strand == ".")) {
+      message("scallele caller mode: no untagged SNV has a read-cluster strand (unstranded library, or a variant ",
+              "file older than the 2026-09-29 read-cluster parser); caller strand mode not available")
+      quit(status = 3)
+    }
     df = df[df$scallele_strand %in% c("+", "-"), ]
     log_msg("  scAllele caller mode: ", nrow(df), " SNVs with a read-cluster strand kept of ", n_all,
             " (", n_tag, " RNA_EDITING?)")
@@ -1040,6 +1093,60 @@ if (nrow(df) == 0) {
   quit(status = 0)
 }
 
+if (!is.null(opt$chunk_out)) {
+  save_chunk(df)
+  quit(status = 0)
+}
+
+} else {
+  # ── Merge of chunk runs (steps 0-6 done per chunk of whole chromosomes) ──
+  log_msg("=== Downstream filter: ", opt$caller, " | sample: ", opt$sample,
+          " | strand_mode: ", opt$strand_mode, " ===")
+  chunk_files = readLines(opt$chunk_in)
+  chunk_files = chunk_files[nchar(chunk_files) > 0]
+  parts = lapply(chunk_files, readRDS)
+  log_msg("Merging steps 0-6 of ", length(parts), " chromosome chunk(s)")
+  for (i in seq_along(parts)) summary_lines = c(summary_lines, paste0("  [chunk ", i, "] ", parts[[i]]$log))
+  strand_label = if (identical(opt$strand_mode, "hybrid")) {
+    "Stranded_hybrid"
+  } else if (identical(opt$strand_mode, "caller")) {
+    "Stranded_by_caller"
+  } else {
+    "Stranded_by_annotations"
+  }
+  merge_tbl = function(nm, label) {
+    n = setNames(integer(length(VARTYPES)), VARTYPES)
+    for (p in parts) {
+      t = p$tbls[[nm]]
+      if (!is.null(t)) n[t$varType] = n[t$varType] + as.integer(t$n)
+    }
+    if (sum(n) == 0) return(collate_vartypes_tbl(data.frame(), label))
+    n = n[order(names(n))]
+    data.frame(varType = names(n), n = unname(n), percent = unname(n) / sum(n),
+               totalSites = sum(n), setType = label, stringsAsFactors = FALSE)
+  }
+  tbl.raw      = merge_tbl("tbl.raw", "After_multiMM_removal")
+  tbl.noSNP    = merge_tbl("tbl.noSNP", "SNPs_removed")
+  tbl.stranded = merge_tbl("tbl.stranded", strand_label)
+  tbl.editCov  = merge_tbl("tbl.editCov", "Cov_and_edit_filtered")
+  log_msg("  After multi-mismatch removal: ", tbl.raw$totalSites[1], " sites")
+  log_msg("  After SNP removal: ", tbl.noSNP$totalSites[1], " sites")
+  log_msg("  After strand assignment: ", tbl.stranded$totalSites[1], " sites")
+  dfs = Filter(function(d) !is.null(d) && nrow(d) > 0, lapply(parts, `[[`, "df"))
+  rm(parts); invisible(gc(FALSE))
+  df = if (length(dfs)) as.data.frame(rbindlist(dfs, use.names = TRUE, fill = TRUE)) else data.frame()
+  rm(dfs); invisible(gc(FALSE))
+  log_msg("  After coverage/edit filters: ", nrow(df), " sites")
+  save_intermediate(df, 4, "cov_edit_filtered")
+  if (nrow(df) == 0) {
+    log_msg("No sites remain after coverage/edit filters.")
+    fwrite(data.table(), opt$output_filtered, sep = "\t")
+    writeLines(summary_lines, opt$output_summary)
+    write_empty_stepwise()
+    quit(status = 0)
+  }
+}
+
 # ── STEP 7: Two-pass adaptive window filtering ──────────────────────────────
 log_msg("STEP 7: Two-pass adaptive window filtering")
 log_msg("  Window sizes: ", paste(windows, collapse = ","))
@@ -1059,7 +1166,7 @@ for (w in w1_windows) {
     tmp$sites_in_wind_n    = 1L
     tmp$uniqueTypesInWindow = 1L
   } else {
-    tmp = rbindlist(mclapply(split_chroms, function(subdf) {
+    tmp = rbindlist(safe_mclapply(split_chroms, function(subdf) {
       applyFilterForReliableSites(subdf, w)
     }, mc.cores = numThreads))
     tmp = as.data.frame(tmp)
@@ -1079,7 +1186,7 @@ for (w1 in w1_windows) {
     nomm = df_w1
   }
   if (nrow(nomm) == 0) {
-    for (w2 in windows) {
+    for (w2 in w2_windows) {
       combination_results[[idx]] = data.frame(n = 0L, percent = 0,
                                                window_sizes = paste0(w1, ",", w2),
                                                stringsAsFactors = FALSE)
@@ -1091,9 +1198,9 @@ for (w1 in w1_windows) {
   nomm_split = split(nomm[, intersect(c("site","chr","pos","varType","strand","sample"), colnames(nomm))],
                       nomm$chr)
 
-  for (w2 in windows) {
+  for (w2 in w2_windows) {
     if (w2 != 0) {
-      min2 = rbindlist(mclapply(nomm_split, function(subdf) {
+      min2 = rbindlist(safe_mclapply(nomm_split, function(subdf) {
         applyFilterForReliableSites(subdf, w2)
       }, mc.cores = max(numThreads %/% 4, 1)))
       min2 = as.data.frame(min2)
@@ -1167,7 +1274,7 @@ if (nrow(nomm_best) == 0) {
 if (best_w2 != 0) {
   nomm_split = split(nomm_best[, intersect(c("site","chr","pos","varType","strand","sample"), colnames(nomm_best))],
                       nomm_best$chr)
-  min2_best = rbindlist(mclapply(nomm_split, function(subdf) {
+  min2_best = rbindlist(safe_mclapply(nomm_split, function(subdf) {
     applyFilterForReliableSites(subdf, best_w2)
   }, mc.cores = numThreads)) |> as.data.frame()
   min2_best = min2_best[min2_best$sites_in_wind_n >= 2, ]

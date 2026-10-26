@@ -1,10 +1,7 @@
 /*
- * STARsolo alignment module with platform-aware configuration
- *
- * Actual parameters verified against all 25 notebooks in the benchmarking study.
+ * STARsolo alignment with platform-specific settings (from the benchmarking notebooks).
  */
 
-// Platform-specific STARsolo settings from the actual benchmarking notebooks
 def getStarsoloParams(platform) {
     def settings = [:]
     settings.soloType = 'CB_UMI_Simple'

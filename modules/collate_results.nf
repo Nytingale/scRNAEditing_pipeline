@@ -1,6 +1,5 @@
 /*
- * Collate all downstream filtering results across the benchmarking grid
- * and generate side-by-side comparison plots + summary table.
+ * Collate downstream filtering metrics across the benchmarking grid into one table.
  */
 
 process COLLATE_RESULTS {

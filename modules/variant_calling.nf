@@ -1,8 +1,12 @@
 /*
- * Variant calling modules — bcftools, REDItools3, GATK, JACUSA2, cellSNP-lite, scAllele
- *
- * Each caller is run per-chromosome for parallelism where applicable.
+ * Variant calling: bcftools, REDItools3, GATK, JACUSA2, Cellsnp-lite, scAllele
  */
+
+// `--flag false` arrives as the string "false", which is truthy in Groovy.
+def toBool(v) {
+    if (v instanceof Boolean) return v
+    return (v?.toString()?.trim()?.toLowerCase() in ['true', '1', 'yes', 'y', 't', 'on'])
+}
 
 process BCFTOOLS_MPILEUP {
     tag { "${meta.id}:${bam_label}" }
@@ -23,9 +27,21 @@ process BCFTOOLS_MPILEUP {
     script:
     def qual = (meta.qual_override != null) ? meta.qual_override : params.qual
     def min_cov = params.min_cov
+    def baq = toBool(params.bcftools_baq) ? 'baq' : 'nobaq'
     """
     #!/bin/bash
     set -euo pipefail
+    # Work-dir-local FASTA .fai BEFORE the xargs workers start. Otherwise each
+    # worker's mpileup auto-builds ${fasta}.fai beside the staged symlink, and
+    # workers that read a half-written index get REF=N for whole chromosomes.
+    if [ ! -f ${fasta}.fai ]; then
+        REALFA=\$(readlink -f ${fasta})
+        if [ -n "\$REALFA" ] && [ -f "\${REALFA}.fai" ]; then
+            cp -f "\${REALFA}.fai" ${fasta}.fai
+        else
+            samtools faidx ${fasta}
+        fi
+    fi
 
     # Determine which chromosomes to process
     if [ "${main_chroms.name}" != "NO_FILE" ] && [ -f "${main_chroms}" ]; then
@@ -43,7 +59,7 @@ process BCFTOOLS_MPILEUP {
     # genotyping (was two full pileups). ~cpus x faster + halves the pileup work,
     # keeping bcftools' benchmark runtime honest vs the windowed REDItools3.
     grep -vE '^[[:space:]]*\$' _chroms.txt | xargs -P ${task.cpus} -I{} \\
-        bcftools_mpileup_chrom.sh {} ${bam} ${fasta} ${qual} ${min_cov}
+        bcftools_mpileup_chrom.sh {} ${bam} ${fasta} ${qual} ${min_cov} ${baq}
 
     # Concatenate per-chromosome outputs in chromosome (file) order.
     > _all_variants.txt
@@ -159,10 +175,6 @@ process REDITOOLS3 {
 process GATK_HAPLOTYPECALLER {
     tag { "${meta.id}:${bam_label}" }
     label 'process_calling'
-    // The call is scattered across chromosomes (see script), so the memory the task
-    // needs scales with the scatter width. The escalating-cpus retry that lifts the
-    // cgroup cap lives in nextflow.config (`withName: JACUSA2_CALL1|
-    // GATK_HAPLOTYPECALLER`) — a config selector would override a `cpus` set here.
     errorStrategy { (task.exitStatus == null || task.exitStatus in [137, 140, 143, 104, 71]) && task.attempt <= 2 ? 'retry' : 'finish' }
     maxRetries    2
     publishDir { "${params.outdir}/${meta.id}/03_variants/gatk/${bam_label}" }, mode: 'copy'
@@ -179,14 +191,8 @@ process GATK_HAPLOTYPECALLER {
           path("${meta.id}_${bam_label}_gatk_snpblacklist.txt.gz"), emit: snp_blacklist
 
     script:
-    // Match the original GATK design (base/mapping quality = QUAL throughout;
-    // q20 lanes set QUAL=20 via qual_override):
-    //   non-recal (run_gatk_call_RGbams_nonrecal.pbs): disable 8 read filters
-    //     so GATK can run on NON-recalibrated BAMs, + soft-clip off + mq/bq QUAL.
-    //   recal / recalq20 (recalibrated BAM): soft-clip off + mq/bq QUAL, no
-    //     filter disabling (recalibration makes the default filters usable).
-    //   recaldefault (GATK-only supplementary run, run_gatk_call_RGbams_
-    //     noRenaming_default.pbs): recal BAM with GATK default settings.
+    // Soft clips off and mapping / base quality = QUAL, plus 8 read filters disabled
+    // on non-recalibrated BAMs. recaldefault: GATK defaults on the recal BAM.
     def is_default = (bam_label == 'recaldefault')
     def is_recal   = bam_label.startsWith('recal') && !is_default
     def qual = (meta.qual_override != null) ? meta.qual_override : params.qual
@@ -211,22 +217,13 @@ process GATK_HAPLOTYPECALLER {
         --min-base-quality-score ${qual}"""
     }
     def min_cov = params.min_cov
-    // HaplotypeCaller is single-threaded per invocation (GATK4 dropped -nct), so
-    // one whole-genome traversal of a deep pseudobulk BAM ran for days and hit the
-    // queue wall limit. Scatter one JVM per main chromosome instead, across ALL
-    // allocated cpus — same as BCFTOOLS_MPILEUP, so the per-caller runtime stays a
-    // like-for-like comparison at the shared process_calling allocation.
-    // Heaps are sized from the ENFORCED cgroup (~4 GB per allocated cpu), not the
-    // unenforced `memory` request, with 75% split across the workers. 3 GB/JVM at
-    // the standard 12 cpus is ample: HaplotypeCaller holds one active region at a
-    // time and downsamples deep pileups (measured peak here was under 1 GB).
-    // A retry de-parallelises instead of asking for more slots, so an OOM is met
-    // with fewer, bigger JVMs while the allocation stays fixed at 12 cpus.
+    // HaplotypeCaller is single-threaded: one JVM per main chromosome across all cpus.
+    // Heaps come from the enforced cgroup (~4 GB per cpu), 75% split across workers;
+    // a retry uses fewer, bigger JVMs at the same allocation.
     def scatter_n  = Math.max(1, (task.cpus / task.attempt).intValue())
     def hc_heap_gb = Math.max(1, ((task.cpus * 4 * 0.75) / scatter_n).intValue())
-    // Collapse the filter block's backslash-newline continuations to one line so it
-    // can be written to the workers' argv file with a plain echo. (A heredoc would
-    // be at the mercy of the indent stripping Nextflow applies to script blocks.)
+    // One line, so it can be echoed to the workers' argv file (a heredoc would be
+    // broken by Nextflow's script indent stripping).
     def filter_tokens = gatk_filters.replaceAll(/\\\s*\n\s*/, ' ').trim()
     """
     #!/bin/bash
@@ -304,25 +301,9 @@ process GATK_HAPLOTYPECALLER {
 process JACUSA2_CALL1 {
     tag { "${meta.id}:${bam_label}" }
     label 'process_calling'
-    // JACUSA2's largest merged BAM (Replogle NTC:sample) OOM-killed (exit 137) with
-    // epilog MEM_USED_G 48.01 / MEM_LIMIT_G 48.00.
-    // CLUSTER MEMORY MODEL (measured): the enforced cap is a cgroup of ~8 GB per
-    // SLOT, and the `threaded` PE allocates 2 threads/slot, so 12 threads = 6
-    // slots = 48 GB. The Nextflow `memory` directive (emitted as -l h_rss,mem_free)
-    // is IGNORED for enforcement (a 64 GB request still gave a 48 GB cgroup; an
-    // 8-thread/4-slot task gave 32 GB).
-    // ROOT CAUSE: -Xmx was derived from that unenforced request (0.8 * 64 = 51 GB),
-    // so the JVM's heap ceiling sat ABOVE the 48 GB cgroup — the JVM had no reason
-    // to collect before the kernel killed it, and NTC (deepest BAM) grew straight
-    // into the cap. The other arms peaked at only 11.5-15.5 GB.
-    // FIX: size -Xmx from the ENFORCED cgroup (see script), keeping the allocation
-    // at 12 threads. Adding slots would also have worked, but every caller is
-    // benchmarked at the same allocation, so raising it for one caller would
-    // invalidate the per-caller runtime comparison and would run the deepest arm
-    // under different resources than the KD arms.
-    // NB: directives set HERE are overridden whenever nextflow.config carries a
-    // matching withLabel/withName selector (verified) — this process takes its
-    // cpus/memory/time from `withLabel: process_calling`.
+    // -Xmx is sized from the enforced cgroup (~8 GB per 2-thread slot), not from the
+    // unenforced `memory` request: a heap above the cap is killed before it collects.
+    // cpus / memory / time come from withLabel process_calling (benchmark parity).
     errorStrategy { (task.exitStatus == null || task.exitStatus in [137, 140, 143, 104, 71]) ? 'retry' : 'finish' }
     maxRetries    3
     publishDir { "${params.outdir}/${meta.id}/03_variants/jacusa2/${bam_label}" }, mode: 'copy'
@@ -351,7 +332,8 @@ process JACUSA2_CALL1 {
     # \$JACUSA2_JAR env var is not exported by the conda package.
     JACUSA2_JAR=\$(ls \${CONDA_PREFIX:-}/share/jacusa2-*/JACUSA_v*.jar 2>/dev/null | head -n1)
     if [ -z "\$JACUSA2_JAR" ]; then
-        JACUSA2_JAR=/home/yng7/miniforge3/envs/scRNAEditing/share/jacusa2-2.1.17-0/JACUSA_v2.1.17.jar
+        echo "ERROR: no JACUSA_v*.jar under \${CONDA_PREFIX:-<no conda env>}/share/jacusa2-*/ (install jacusa2 into the env)" >&2
+        exit 1
     fi
 
     # JACUSA2 needs an .fai-indexed reference (staged FASTA is a symlink).
@@ -404,20 +386,11 @@ process JACUSA2_CALL1 {
 
 
 /*
- * JACUSA2 call-1, one Nextflow task PER CHROMOSOME (JACUSA2_CHROM) + an ordered
- * concatenation (JACUSA2_GATHER); used when --jacusa2_scatter true (Replogle).
- * JACUSA2_CALL1 above is kept unchanged for the teratoma runs (task cache).
- * The whole-genome task on the Replogle merged NTC sampleRmDup BAM lost one of its
- * 12 worker threads to java.lang.OutOfMemoryError (36 GB heap, 2026-09-30); the JVM
- * did not exit, so the task hung with a 0-byte output instead of failing. Per
- * chromosome, an OOM costs one contig, and -XX:+ExitOnOutOfMemoryError (exit 3)
- * turns it into a retry with a doubled heap (nextflow.config withName JACUSA2_CHROM).
- * call-1 scores each site on its own, so the per-chromosome rows equal the
- * whole-genome rows; the gathered file keeps the whole-genome name and layout
- * (one ## banner, the #contig header, rows in --main_chroms order).
- *
- * RUNTIME REPORTING: like scAllele, JACUSA2 cost on scattered runs = the SUM of
- * its JACUSA2_CHROM tasks, not one task under the shared process_calling allocation.
+ * JACUSA2 call-1 per chromosome + ordered gather (--jacusa2_scatter). A worker-thread
+ * OOM hangs the whole-genome JVM; here -XX:+ExitOnOutOfMemoryError (exit 3) makes it a
+ * retry. call-1 scores sites independently, so the gathered rows equal the
+ * whole-genome rows. Runtime = sum over JACUSA2_CHROM tasks. JACUSA2_CALL1 is kept
+ * unchanged for the teratoma runs (task cache).
  */
 process JACUSA2_CHROM {
     tag { "${meta.id}:${bam_label}:${chrom}" }
@@ -445,7 +418,8 @@ process JACUSA2_CHROM {
 
     JACUSA2_JAR=\$(ls \${CONDA_PREFIX:-}/share/jacusa2-*/JACUSA_v*.jar 2>/dev/null | head -n1)
     if [ -z "\$JACUSA2_JAR" ]; then
-        JACUSA2_JAR=/home/yng7/miniforge3/envs/scRNAEditing/share/jacusa2-2.1.17-0/JACUSA_v2.1.17.jar
+        echo "ERROR: no JACUSA_v*.jar under \${CONDA_PREFIX:-<no conda env>}/share/jacusa2-*/ (install jacusa2 into the env)" >&2
+        exit 1
     fi
     [ -f ${fasta}.fai ] || samtools faidx ${fasta}
 
@@ -512,17 +486,11 @@ process JACUSA2_GATHER {
 
 
 /*
- * cellSNP-lite mode 2b: bulk pileup of the whole pseudobulk BAM over the main
- * chromosomes (--cellTAG None), read counts not UMIs (--UMItag None; the dedup
- * axis is the bam_type, as for the other callers). REF is the genomic base (-f);
- * ALT is cellSNP-lite's most frequent non-REF base. No strand output, so rows are
- * in the genomic (+) frame and only strand_mode 'annotation' applies.
- * cellSNP-lite has no base-quality filter; --minMAPQ = QUAL.
- * INFO: AD = ALT reads, DP = REF + ALT reads, OTH = other non-REF reads
- * (checked against samtools mpileup). Output TSV: chr, pos, ref, alt, cov_ref
- * (DP - AD), cov_alt (AD), cov (DP + OTH); rows with AD >= 1 only.
- * Runs the binary from params.cellsnp_bin (own conda env) so samtools from the
- * pipeline env stays on PATH.
+ * Cellsnp-lite mode 2b: bulk pileup of the pseudobulk BAM (--cellTAG None, --UMItag
+ * None). No strand output (annotation strand mode only) and no base-quality filter
+ * (--minMAPQ = QUAL). Output: cov_ref = DP - AD, cov_alt = AD, cov = DP + OTH; rows
+ * with AD >= 1. Runs params.cellsnp_bin from its own env so the pipeline's samtools
+ * stays on PATH.
  */
 process CELLSNP_LITE {
     tag { "${meta.id}:${bam_label}" }
@@ -593,28 +561,12 @@ process CELLSNP_LITE {
 
 
 /*
- * scAllele, one Nextflow task PER CHROMOSOME (SCALLELE_CHROM) + an ordered
- * concatenation (SCALLELE_GATHER). Replaces the single 12-cpu task that ran
- * contigs with xargs -P inside a fixed 48 GB allocation, which OOMed on the
- * Replogle merged NTC (1.76 B reads) before any contig finished.
- *
- * RUNTIME REPORTING: scAllele cost = the SUM of its SCALLELE_CHROM tasks
- * (realtime, cpu, peak_rss per task) for one sample x bam_label, from the
- * Nextflow trace (human/scripts/nf_trace_scallele_runtime.R). It is therefore
- * not measured under the shared process_calling allocation like the other
- * callers; say so wherever runtimes are compared.
- *
- * EDITING DISCOVERY: emit ALL scAllele SNVs (PASS + LowQual) with FILTER, the
- * INFO varType tag and the read-cluster strand of RNA_EDITING? rows (see
- * bin/scallele_io.py). PASS is not used: scAllele's GLM was trained on genetic
- * variants with RNA_EDITING? candidates excluded, so it would score editing
- * with a classifier that never saw editing. strand_mode 'caller' keeps the
- * RNA_EDITING? rows with scAllele's own strand; 'annotation' uses all SNVs.
- * No per-sample SNP blacklist (snp_subtract = on is NA for scAllele).
- * The raw VCF and scAllele's read-cluster table (index -> strand, span) are
- * published so parser changes never need a scAllele rerun. The cluster table
- * gives the read-cluster strand of EVERY SNV (bin/scallele_vcf.py), so caller
- * mode keeps all mismatch types on scAllele's own strand (2026-09-29).
+ * scAllele per chromosome + ordered gather. Runtime = sum over SCALLELE_CHROM tasks
+ * (human/scripts/nf_trace_scallele_runtime.R), not measured under process_calling.
+ * All SNVs (PASS + LowQual) are kept: scAllele's GLM was trained on genetic variants
+ * with editing candidates excluded, so PASS is not used. strand_mode 'caller' uses
+ * the read-cluster strand (bin/scallele_vcf.py). No per-sample SNP blacklist. The raw
+ * VCF and read-cluster table are published so parser changes need no rerun.
  */
 process SCALLELE_CHROM {
     tag { "${meta.id}:${bam_label}:${chrom}" }

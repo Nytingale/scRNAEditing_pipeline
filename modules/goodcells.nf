@@ -1,13 +1,7 @@
 /*
- * goodCells construction
- *
- * goodCells = annotated ∪ QC-passing unannotated
- *
- * Candidate pool is the union of STARsolo/CellRanger filtered barcodes and
- * annotated barcodes (prevents hierarchy inversion when the caller is more
- * conservative than the annotation). Annotated cells are assumed QC-passed.
- * Unannotated cells are filtered with uniform nFeature / nCount / pct_mt
- * thresholds. Mitochondrial genes are taken from the GTF by chromosome.
+ * goodCells = annotated ∪ QC-passing unannotated. Candidates are the STARsolo / Cell
+ * Ranger filtered barcodes plus the annotated ones; annotated cells count as
+ * QC-passed, unannotated ones are filtered on nFeature / nCount / pct_mt.
  */
 
 process COMPUTE_GOOD_CELLS {

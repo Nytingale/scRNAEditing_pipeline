@@ -121,13 +121,8 @@ process ADD_MD_TAG {
 process FILTER_UNIQUELY_MAPPED {
     tag { "${meta.lane_id ?: meta.id}" }
     label 'process_high'
-    // Pre-existing BAMs (remap=false) can carry multimappers (e.g. Cell Ranger
-    // NH:i:2..N); NOT reached when remap=true (STARsolo already emits unique-only
-    // via --outFilterMultimapNmax 1). Large pooled BAMs (~90 GB) previously blew
-    // past the 8 h wall as a single-thread awk-over-SAM pass; now a threaded
-    // htslib expression filter. Retry on transient SGE kills, escalating time.
-    // The time escalation is set in nextflow.config (withName); a `time`
-    // directive here is silently overridden by 'process_high'.
+    // Pre-existing BAMs can carry multimappers (STARsolo output is unique-only).
+    // Time escalation: nextflow.config.
     errorStrategy { task.attempt <= 2 ? 'retry' : 'finish' }
     maxRetries    2
     publishDir { "${params.outdir}/${meta.id}/00_validated" }, mode: 'copy'

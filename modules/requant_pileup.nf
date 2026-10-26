@@ -1,22 +1,8 @@
 /*
- * REQUANT_PILEUP — method-independent re-quantification of editing level and
- * coverage for the published per-site tables.
- *
- * Each caller reports edit_level = cov_alt/(cov_ref+cov_alt) from its own
- * AD/base bookkeeping (different QC/BAQ/strand handling per method), so the
- * values are not strictly comparable and may be trusted verbatim downstream.
- * Here we re-derive one canonical, strand-aware editing level + coverage
- * directly from the SAME bam_type BAM that produced each output, using the
- * project's stranded pileup parser, and ADD columns (originals preserved):
- *     edit_level_pileup, cov_pileup, edited_reads, ref_reads
- *
- * The pileup value is a physical property of the reads, so it is identical
- * across strand_mode variants of a given (sample, bam_type); only which sites
- * PASS differs by strand_mode. It depends on bam_type (dedup/recal change the
- * reads), hence the matching BAM is always used.
- *
- * Publishes the requantified filtered/pre100 under the canonical 04_filtered
- * path (replacing the raw copies, which DOWNSTREAM_R skips when requant is on).
+ * Callers compute editing levels differently (QC, BAQ, strand handling), so the
+ * published tables get one strand-aware pileup editing level and coverage from the
+ * bam_type BAM that produced each call: edit_level_pileup, cov_pileup, edited_reads,
+ * ref_reads (original columns kept). Publishes filtered / pre100 to 04_filtered.
  */
 
 process REQUANT_PILEUP {

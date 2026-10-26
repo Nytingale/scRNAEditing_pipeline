@@ -1,10 +1,6 @@
 /*
- * REDIportal overlap summary (human datasets)
- *
- * Counts, per (sample, caller, bam_type, strand_mode, snp_sub), how many
- * discovered sites fall on a known REDIportal editing position vs are novel,
- * with fractions — one tidy table for figure plotting. REDIportal is loaded
- * once and every pre100 table is scored in a single R session.
+ * REDIportal overlap: known vs novel sites per (sample, caller, bam_type, strand_mode,
+ * snp_sub), all pre100 tables in one R session.
  */
 
 process REDIPORTAL_OVERLAP {

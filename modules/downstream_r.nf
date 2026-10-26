@@ -1,11 +1,9 @@
 /*
- * Downstream R processing — gene annotation, SNP filtering,
- * strand assignment, adaptive window filtering
+ * Downstream filtering: gene annotation, SNP removal, strand assignment and removal
+ * of sites near other mismatch types.
  */
 
-// Coerce CLI/params booleans: `--flag false` on the command line arrives as the
-// STRING "false", which is truthy in Groovy. Normalize to a real Boolean.
-// (Module-local copy; the workflow body has its own toBool in main.nf.)
+// `--flag false` arrives as the string "false", which is truthy in Groovy.
 def toBool(v) {
     if (v instanceof Boolean) return v
     return (v?.toString()?.trim()?.toLowerCase() in ['true', '1', 'yes', 'y', 't', 'on'])
@@ -14,26 +12,14 @@ def toBool(v) {
 process DOWNSTREAM_R {
     tag { "${meta.id}:${caller}:${bam_label}:${strand_mode}:snp_${snp_sub}" }
     label 'process_medium'
-    // scAllele/reditools3/jacusa2 emit ~2M+ candidate sites on the deep NTC
-    // arms; combined with the dbSNP GRanges (and the extra per-sample blacklist
-    // overlap on snp_on) this OOMs at the base 16 GB.
-    // Memory escalation lives in nextflow.config as a `-l mem` clusterOptions
-    // withName selector. A `memory` directive here would be BOTH silently
-    // overridden by 'process_medium' AND unenforced by the scheduler — see the
-    // block comment in nextflow.config.
-    // Retry ANY failure through maxRetries (incl. null exitStatus from SGE
-    // external kill with no .exitcode) so the memory ladder in nextflow.config
-    // can climb. Bound by attempt — do not OR null alone (that would keep
-    // returning retry after maxRetries is exhausted).
-    errorStrategy { task.attempt <= 3 ? 'retry' : 'finish' }
+    // Memory ladder: nextflow.config. Exit 3 = scAllele 'caller' strand mode
+    // unavailable (unstranded library): the configuration does not exist, so no retry.
+    errorStrategy { task.exitStatus == 3 ? 'ignore' : (task.attempt <= 3 ? 'retry' : 'finish') }
     maxRetries    3
     publishDir(
         path: { "${params.outdir}/${meta.id}/04_filtered/${caller}/${bam_label}/${strand_mode}/snp_${snp_sub}" },
         mode: 'copy',
-        // When requant is on, the canonical filtered/pre100 are published by
-        // REQUANT_PILEUP (with re-quantified columns); skip the raw copies here.
-        // NB: `--requant_editing false` arrives as the STRING "false" (truthy in
-        // Groovy) — toBool() coerces so the flag is actually honored.
+        // With requant on, REQUANT_PILEUP publishes filtered / pre100.
         saveAs: { fn -> (toBool(params.requant_editing) && (fn.endsWith('_filtered.txt.gz') || fn.endsWith('_pre100.tsv.gz'))) ? null : fn }
     )
 
@@ -74,15 +60,13 @@ process DOWNSTREAM_R {
     def chroms_flag  = main_chroms.name  != 'NO_FILE' ? "--main_chroms ${main_chroms}" : ""
     def windows      = params.adaptive_windows
     def mm_window    = toBool(params.mismatch_window_filter) ? 1 : 0
+    def clustered    = toBool(params.clustered_filter) ? 1 : 0
     def save_int_n   = (params.save_intermediates ?: 0).toString().isInteger() ? (params.save_intermediates).toString().toInteger() : 0
     def intermed     = save_int_n > 0 ? "--save_intermediates ${save_int_n}" : ""
     def ambig_thresh = params.strand_ambiguity_threshold
     def min_alt      = params.min_alt
     def min_edit     = params.min_edit_level
-    // Alt-read support rule. `count` reproduces the historical cov_alt >= min_alt;
-    // `binom` tests the alt count against the sequencing error rate instead. See
-    // the block comment on --alt_rule in bin/downstream_filter.R for why this is
-    // the binding sensitivity threshold and not min_edit_level.
+    // 'count': cov_alt >= min_alt; 'binom': alt count above the sequencing error rate.
     def alt_rule     = params.alt_rule
     def seq_err      = params.seq_error_rate
     def alt_alpha    = params.alt_binom_alpha
@@ -91,7 +75,7 @@ process DOWNSTREAM_R {
     def rm_100pct    = toBool(params.remove_100pct_editing) ? 'TRUE' : 'FALSE'
     """
     # downstream_filter v2 — requires R.utils for gzipped I/O; requant pipeline
-    Rscript ${projectDir}/bin/downstream_filter.R \\
+    Rscript ${projectDir}/bin/downstream_filter_v8.R \\
         --input ${variants} \\
         --caller ${caller} \\
         --sample ${meta.id} \\
@@ -105,6 +89,7 @@ process DOWNSTREAM_R {
         ${chroms_flag} \\
         --windows "${windows}" \\
         --mismatch_window_filter ${mm_window} \\
+        --clustered_filter ${clustered} \\
         --min_cov ${params.min_cov} \\
         --min_alt ${min_alt} \\
         --min_edit_level ${min_edit} \\
@@ -127,34 +112,20 @@ process DOWNSTREAM_R {
 }
 
 /*
- * DOWNSTREAM_R for scAllele only: identical to DOWNSTREAM_R except that it runs
- * bin/downstream_filter_scallele.R (see that file's header). A separate process,
- * because Nextflow hashes a process's script source: routing scAllele inside
- * DOWNSTREAM_R would change the hash of every caller's task.
+ * Same as DOWNSTREAM_R but runs bin/downstream_filter_scallele.R. A separate process,
+ * so routing scAllele does not change the task hash of the other callers.
  */
 process DOWNSTREAM_R_SCALLELE {
     tag { "${meta.id}:${caller}:${bam_label}:${strand_mode}:snp_${snp_sub}" }
     label 'process_medium'
-    // scAllele/reditools3/jacusa2 emit ~2M+ candidate sites on the deep NTC
-    // arms; combined with the dbSNP GRanges (and the extra per-sample blacklist
-    // overlap on snp_on) this OOMs at the base 16 GB.
-    // Memory escalation lives in nextflow.config as a `-l mem` clusterOptions
-    // withName selector. A `memory` directive here would be BOTH silently
-    // overridden by 'process_medium' AND unenforced by the scheduler — see the
-    // block comment in nextflow.config.
-    // Retry ANY failure through maxRetries (incl. null exitStatus from SGE
-    // external kill with no .exitcode) so the memory ladder in nextflow.config
-    // can climb. Bound by attempt — do not OR null alone (that would keep
-    // returning retry after maxRetries is exhausted).
-    errorStrategy { task.attempt <= 3 ? 'retry' : 'finish' }
+    // Memory ladder: nextflow.config. Exit 3 = scAllele 'caller' strand mode
+    // unavailable (unstranded library): the configuration does not exist, so no retry.
+    errorStrategy { task.exitStatus == 3 ? 'ignore' : (task.attempt <= 3 ? 'retry' : 'finish') }
     maxRetries    3
     publishDir(
         path: { "${params.outdir}/${meta.id}/04_filtered/${caller}/${bam_label}/${strand_mode}/snp_${snp_sub}" },
         mode: 'copy',
-        // When requant is on, the canonical filtered/pre100 are published by
-        // REQUANT_PILEUP (with re-quantified columns); skip the raw copies here.
-        // NB: `--requant_editing false` arrives as the STRING "false" (truthy in
-        // Groovy) — toBool() coerces so the flag is actually honored.
+        // With requant on, REQUANT_PILEUP publishes filtered / pre100.
         saveAs: { fn -> (toBool(params.requant_editing) && (fn.endsWith('_filtered.txt.gz') || fn.endsWith('_pre100.tsv.gz'))) ? null : fn }
     )
 
@@ -195,15 +166,13 @@ process DOWNSTREAM_R_SCALLELE {
     def chroms_flag  = main_chroms.name  != 'NO_FILE' ? "--main_chroms ${main_chroms}" : ""
     def windows      = params.adaptive_windows
     def mm_window    = toBool(params.mismatch_window_filter) ? 1 : 0
+    def clustered    = toBool(params.clustered_filter) ? 1 : 0
     def save_int_n   = (params.save_intermediates ?: 0).toString().isInteger() ? (params.save_intermediates).toString().toInteger() : 0
     def intermed     = save_int_n > 0 ? "--save_intermediates ${save_int_n}" : ""
     def ambig_thresh = params.strand_ambiguity_threshold
     def min_alt      = params.min_alt
     def min_edit     = params.min_edit_level
-    // Alt-read support rule. `count` reproduces the historical cov_alt >= min_alt;
-    // `binom` tests the alt count against the sequencing error rate instead. See
-    // the block comment on --alt_rule in bin/downstream_filter.R for why this is
-    // the binding sensitivity threshold and not min_edit_level.
+    // 'count': cov_alt >= min_alt; 'binom': alt count above the sequencing error rate.
     def alt_rule     = params.alt_rule
     def seq_err      = params.seq_error_rate
     def alt_alpha    = params.alt_binom_alpha
@@ -226,6 +195,7 @@ process DOWNSTREAM_R_SCALLELE {
         ${chroms_flag} \\
         --windows "${windows}" \\
         --mismatch_window_filter ${mm_window} \\
+        --clustered_filter ${clustered} \\
         --min_cov ${params.min_cov} \\
         --min_alt ${min_alt} \\
         --min_edit_level ${min_edit} \\

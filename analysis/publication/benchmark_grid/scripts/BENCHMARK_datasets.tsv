@@ -1,0 +1,5 @@
+dataset	label	tier	summary_tsv	min_alt	notes
+pm_gt_persample	Teratoma CRISPR-KO, per-sample	persample	human/pm/results_gt_persample/summary/collated/all_results_summary.tsv	3	20 pseudobulk BAMs (4 teratomas x 5 arms). COMPLETE. The reference tier: full 5-caller grid.
+pm_gt_merged	Teratoma CRISPR-KO, merged arms	merged	human/pm/results_gt_v2/summary/collated/all_results_summary.tsv	3	5 merged arms. Full-grid re-run (run_pipeline_pm_gt_merged_full.sh); results_gt_v2, NOT the old ragged results_gt.
+replogle_gt	Replogle K562 CRISPRi-KD, merged arms	merged	human/replogle/results_gt/summary/collated/all_results_summary.tsv	3	3 arms (ADAR_KD, ADARB1_KD, NTC_ctrl). One cell line, so sample level only.
+pm_gt_celltype_as_sample	Teratoma CRISPR-KO, celltype-as-sample	celltype	human/pm/results_gt_celltype_as_sample/summary/collated/all_results_summary.tsv	3	Each cell type of an arm treated as a sample. Not yet launched.

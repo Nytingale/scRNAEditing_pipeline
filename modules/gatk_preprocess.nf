@@ -5,11 +5,7 @@
 process GATK_SPLITNCIGAR {
     tag { "${meta.id}" }
     label 'process_high'
-    // SplitNCigarReads (JVM) is occasionally killed by SGE ("terminated by the
-    // external system"), which otherwise aborts the whole run. Retry with
-    // escalating memory (Xmx tracks task.memory), capped at max_memory (128 GB).
-    // The memory escalation lives in nextflow.config (withName + `-l mem`); a
-    // `memory` directive here is silently overridden by 'process_high'.
+    // Memory escalation: nextflow.config (-Xmx tracks task.memory).
     errorStrategy { task.attempt <= 3 ? 'retry' : 'finish' }
     maxRetries    3
     publishDir { "${params.outdir}/${meta.id}/02_gatk_preprocess" }, mode: 'copy'
@@ -76,9 +72,7 @@ process GATK_SPLITNCIGAR {
 process GATK_BQSR {
     tag { "${meta.id}" }
     label 'process_high'
-    // Same transient-kill hardening as GATK_SPLITNCIGAR.
-    // Memory escalation is in nextflow.config (withName + `-l mem`); a `memory`
-    // directive here is silently overridden by 'process_high'.
+    // Memory escalation: nextflow.config.
     errorStrategy { task.attempt <= 3 ? 'retry' : 'finish' }
     maxRetries    3
     publishDir { "${params.outdir}/${meta.id}/02_gatk_preprocess" }, mode: 'copy'

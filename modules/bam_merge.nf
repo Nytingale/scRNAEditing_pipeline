@@ -1,15 +1,7 @@
 /*
- * BAM merging modules
- *
- * MERGE_BAMS: Standard merge of all BAMs sharing a sample_id.
- *   Used for sample-level BAM types (sample, sampleRmDup).
- *
- * SELECTIVE_MERGE: Merge only a subset of per-cell BAMs matching an
- *   annotation/filter file. Used for goodCells, annotated, and celltype
- *   BAM types on per-cell platforms (e.g. Smart-seq2) where sinto cannot
- *   work (no CB tags in BAM). The annotation file maps cell_id → group;
- *   only BAMs whose cell_id appears in column 1 of the annotation are merged.
- *   For celltype, produces one BAM per unique group (column 2).
+ * MERGE_BAMS: merge all BAMs of a sample_id.
+ * SELECTIVE_MERGE: merge the per-cell BAMs (Smart-seq2, no CB tags) whose cell_id is in
+ * column 1 of the annotation; 'celltype' mode writes one BAM per group (column 2).
  */
 
 process MERGE_BAMS {
@@ -37,23 +29,8 @@ process MERGE_BAMS {
 
 
 /*
- * SELECTIVE_MERGE: merge a subset of per-cell BAMs matching an annotation file.
- *
- * Inputs:
- *   meta         — sample metadata map (must have .id)
- *   bams         — list of per-cell BAMs (staged by Nextflow)
- *   bais         — list of corresponding BAI files
- *   cell_ids     — list of cell identifiers, parallel to bams (same order)
- *   annot_file   — TSV with cell_id in col1 and group in col2
- *   filter_label — output label (e.g. 'goodCells', 'annotated')
- *   mode         — 'filter' (merge all matched into one BAM) or
- *                  'celltype' (one BAM per unique group in col2)
- *
- * Outputs (filter mode):
- *   bam: [meta, <label>.bam, <label>.bam.bai]
- *
- * Outputs (celltype mode):
- *   bam: [meta, <celltype>.bam, <celltype>.bam.bai]  (one per cell type)
+ * cell_ids are parallel to bams. Outputs: <label>.bam (mode 'filter') or one
+ * <celltype>.bam per group (mode 'celltype').
  */
 process SELECTIVE_MERGE {
     tag { "${meta.id}_${filter_label}" }

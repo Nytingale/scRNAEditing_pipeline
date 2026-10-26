@@ -1,33 +1,14 @@
 /*
- * Deduplication module — three strategies:
- *   'none'       — skip dedup entirely
- *   'coordinate' — cell-aware coordinate-based (GATK MarkDuplicates):
- *                  MARKDUP_CHROM + MARKDUP_GATHER (per-cell SS2: MARKDUP_PERCELL_SS2)
- *   'umi'        — UMI-aware (umi_tools dedup): UMI_DEDUP_CHROM + UMI_DEDUP_GATHER
- * Coordinate and UMI dedup share dedup_per_well_script(): per chromosome and,
- * when a BAM pools several GEM wells (@RG SM), per well, then merged.
- *
- * Cell barcode tag is configurable via params.dedup_cell_tag (default: CR).
- * CR (raw barcode) is recommended because CB can be "-" for uncorrectable
- * barcodes, which would lump unrelated reads into one group.
- * Users who prefer CB can set --dedup_cell_tag CB; a guard step automatically
- * removes reads with CB:Z:- (only when using CB, to avoid unnecessary I/O).
+ * Deduplication: 'none', 'coordinate' (GATK MarkDuplicates, cell-aware) or 'umi'
+ * (umi_tools). CR is the default cell tag: CB can be "-" for uncorrectable barcodes,
+ * which would lump unrelated reads; with CB, reads with CB:Z:- are removed first.
  */
 
 /*
- * Shared per-chromosome / per-GEM-well dedup driver for BOTH strategies
- * (coordinate and UMI), so they differ only in the per-well dedup command.
- *   1. region: one main chromosome, `_other` (all other mapped contigs) or
- *      `_all` (no --main_chroms); a sample's regions together = every mapped read.
- *   2. wells: a cell barcode is unique only WITHIN a GEM well, so a BAM that
- *      pools several wells (>1 distinct @RG SM; Replogle = 267) is split in one
- *      pass by read group (samtools split), read groups of the same SM are
- *      re-joined, and EACH WELL IS DEDUPLICATED ON ITS OWN. One/no SM = one unit.
- *   3. the deduplicated wells are merged back (coordinate-sorted).
- * The caller defines a bash function `dedup_unit IN.bam OUT.bam` (indexed IN)
- * before this block; wells run ${cpus}-way in parallel. Sets N_IN / N_WELLS and
- * writes the merged result to OUT. Per-well side files (metrics, logs) are left
- * in _dd/ for the caller, which removes _dd.
+ * Shared driver for both strategies: per region (one main chromosome, `_other` or
+ * `_all`) and per GEM well. A cell barcode is unique only within a GEM well, so a BAM
+ * pooling wells (>1 @RG SM) is split by well, each well deduplicated on its own, then
+ * merged. The caller defines `dedup_unit IN.bam OUT.bam` before this block.
  */
 def dedup_per_well_script(bam, chrom, main_chroms, cell_tag, cpus, out) {
     """
@@ -48,6 +29,10 @@ def dedup_per_well_script(bam, chrom, main_chroms, cell_tag, cpus, out) {
     else
         if [ "${cell_tag}" = "CB" ]; then   # CB:Z:- = uncorrectable barcode, never a cell
             samtools view -h _in.bam | awk '/^@/ || \$0 !~ /CB:Z:-/' | samtools view -b -o _clean.bam -
+            mv _clean.bam _in.bam
+        fi
+        if [ "${out.endsWith('_umiDup.bam')}" = "true" ]; then   # UB:Z:- = uncorrectable UMI (STARsolo): cannot be UMI-deduplicated
+            samtools view -h _in.bam | awk '/^@/ || \$0 !~ /\\tUB:Z:-(\\t|\$)/' | samtools view -b -o _clean.bam -
             mv _clean.bam _in.bam
         fi
         rm -rf _units _dd; mkdir -p _units _dd
@@ -91,10 +76,8 @@ def dedup_per_well_script(bam, chrom, main_chroms, cell_tag, cpus, out) {
 }
 
 /*
- * Coordinate dedup (GATK MarkDuplicates, cell-aware via the cell tag), per
- * chromosome and per GEM well exactly like UMI_DEDUP_CHROM
- * (dedup_per_well_script); only the per-well command differs. 10x reads are
- * single-end, so no duplicate set spans two chromosomes.
+ * Coordinate dedup per chromosome and GEM well. 10x reads are single-end, so no
+ * duplicate set spans two chromosomes.
  */
 process MARKDUP_CHROM {
     tag { "${meta.id}:${chrom}" }
@@ -129,10 +112,8 @@ process MARKDUP_CHROM {
     """
 }
 
-// Merge per-chromosome pieces (same output name/location as the old single
-// task) and write ONE Picard-format metrics file: counts summed per LIBRARY
-// across chromosomes, PERCENT_DUPLICATION recomputed, ESTIMATED_LIBRARY_SIZE
-// left blank (not additive across chromosomes).
+// Picard metrics are summed per LIBRARY across chromosomes; ESTIMATED_LIBRARY_SIZE
+// is left blank (not additive).
 process MARKDUP_GATHER {
     tag { "${meta.id}" }
     label 'process_medium'
@@ -189,16 +170,9 @@ process MARKDUP_GATHER {
 
 
 /*
- * Per-cell coordinate dedup for per-cell platforms (Smart-seq2).
- * SS2 reads carry no cell barcode tag, so MarkDuplicates on a merged BAM would
- * collapse identical fragments from DIFFERENT cells. Each per-cell BAM is
- * therefore deduped on its own (one cell = one library, no BARCODE_TAG needed).
- * All deduped cells merged = sampleRmDup (and the input to recal/recalq20);
- * goodCellsRmDup/annotatedRmDup/celltypeRmDup are built by SELECTIVE_MERGE
- * from the deduped cells.
- *
- * Per-cell outputs are named by zero-padded input position (000001.bam, ...)
- * so that, sorted by name, they stay parallel to cell_ids.
+ * Smart-seq2: reads carry no cell tag, so each per-cell BAM is deduplicated on its own
+ * (a merged-BAM dedup would collapse identical fragments of different cells).
+ * Outputs are named by zero-padded input position so they stay parallel to cell_ids.
  */
 process MARKDUP_PERCELL_SS2 {
     tag { "${meta.id}" }
@@ -236,15 +210,20 @@ CIDEOF
     fi
 
     # One JVM per cell, ${task.cpus} in parallel, heap split across them.
+    # MarkDuplicates (GATK 4.6) needs a read group on every read; per-cell BAMs often have none (STAR without
+    # --outSAMattrRGline), so each cell gets its own (ID = LB = cell index: one library per cell, SM = sample).
     awk '{printf "%06d\\t%s\\n", NR, \$1}' _bam_list.txt > _jobs.tsv
     xargs -P ${task.cpus} -L 1 bash -c '
-        gatk --java-options "-Xmx${heap_gb}G" MarkDuplicates \\
-            -I "\$1" \\
+        samtools addreplacerg -w -r "ID:\$0" -r "SM:${meta.id}" -r "LB:\$0" -r "PL:illumina" \\
+            -o rmdup/\$0.rg.bam "\$1" \\
+        && gatk --java-options "-Xmx${heap_gb}G" MarkDuplicates \\
+            -I rmdup/\$0.rg.bam \\
             -O rmdup/\$0.bam \\
             -M rmdup/\$0.metrics.txt \\
             --REMOVE_DUPLICATES true \\
             --QUIET true \\
             --VERBOSITY WARNING \\
+        && rm -f rmdup/\$0.rg.bam \\
         && samtools index rmdup/\$0.bam
     ' < _jobs.tsv
 
@@ -272,21 +251,9 @@ CIDEOF
 
 
 /*
- * UMI dedup, per chromosome and per GEM well, then merged.
- *
- * WHY. A cell barcode is only unique WITHIN a GEM well. Merged BAMs that pool
- * wells (Replogle: 267 wells in one arm, CB always "-1"; any multi-sample
- * merge) reuse the same CR in different wells, so `--per-cell --cell-tag=CR`
- * on the pooled BAM would treat same-barcode cells from different wells as one
- * cell and collapse their reads. Each well (@RG SM) is therefore deduplicated
- * on its own and the wells are merged (dedup_per_well_script). BAMs with
- * one/no SM (a single well, e.g. one teratoma) are one unit.
- * Dedup is position-local, so running each chromosome separately gives the
- * same result as one pass, in bounded memory and in parallel (the unscattered
- * version OOMed at 64 GB after 2.75 d on the 1.76 B-read Replogle NTC BAM).
- * `_other` = every mapped contig not in --main_chroms (no read is dropped that
- * the unscattered version kept; unmapped reads were never emitted by umi_tools).
- * --output-stats was removed: nothing consumed it and it dominated memory.
+ * UMI dedup per chromosome and GEM well (dedup_per_well_script). Dedup is
+ * position-local, so per-chromosome runs equal one pass, in bounded memory.
+ * `_other` = every mapped contig not in --main_chroms.
  */
 process UMI_DEDUP_CHROM {
     tag { "${meta.id}:${chrom}" }
@@ -324,8 +291,7 @@ process UMI_DEDUP_CHROM {
     """
 }
 
-// Merge the per-chromosome pieces back into one coordinate-sorted BAM (same
-// output name/location as before), checking no read is lost in the merge.
+// Checks that no read is lost in the merge.
 process UMI_DEDUP_GATHER {
     tag { "${meta.id}" }
     label 'process_medium'
@@ -354,8 +320,7 @@ process UMI_DEDUP_GATHER {
 
 
 /*
- * Passthrough process for --dedup none
- * Simply symlinks the input BAM with a consistent naming scheme
+ * --dedup none: symlink the input BAM.
  */
 process SKIP_DEDUP {
     tag { "${meta.id}" }

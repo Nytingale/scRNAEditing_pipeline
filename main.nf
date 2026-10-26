@@ -10,90 +10,80 @@ nextflow.enable.dsl=2
 
 params.input           = null    // Samplesheet CSV
 params.outdir          = 'results'
-params.genome_fasta    = null    // Reference genome FASTA
-params.genome_gtf      = null    // Gene annotation GTF
-params.star_index      = null    // Pre-built STAR index (optional)
-params.snp_file        = null    // Known SNP file — RData (GRanges, preferred) or BED (legacy)
-params.known_sites_vcf = null    // Known sites VCF/BED for GATK BQSR (null = skip recalibration)
-params.strand_annots   = null    // Pre-built strand annotation RData (optional)
-params.alu_annots      = null    // Alu annotations RData for human (optional)
-params.rediportal      = null    // REDIportal VCF(.gz) of known editing positions (human). When set, emit summary/rediportal_overlap.tsv (n known vs novel + fractions) for figures.
-params.repeat_annots   = null    // Repeat annotations for AEI (optional)
+params.genome_fasta    = null
+params.genome_gtf      = null
+params.star_index      = null
+params.snp_file        = null    // Known SNPs: RData (GRanges, preferred) or BED
+params.known_sites_vcf = null    // GATK BQSR known sites (null = no recalibration)
+params.strand_annots   = null
+params.alu_annots      = null
+params.rediportal      = null    // REDIportal VCF; when set, writes summary/rediportal_overlap.tsv
+params.repeat_annots   = null    // Repeat annotations for AEI
 params.refseq_bed      = null    // RefSeq BED for strandedness inference
-params.main_chroms     = null    // One-per-line file of chromosomes to analyze (null = all from BAM header)
+params.main_chroms     = null    // One chromosome per line (null = all from BAM header)
 params.remap           = false   // Re-align with STARsolo
-params.dedup           = 'none,coordinate'  // Comma-separated dedup strategies to benchmark: 'none', 'coordinate', 'umi'
-params.dedup_cell_tag  = 'CR'          // Cell barcode tag for dedup grouping: 'CR' (raw, recommended) or 'CB' (corrected)
-params.callers         = 'bcftools,reditools3,gatk,jacusa2'  // add scallele / cellsnp via --callers; not default
+params.dedup           = 'none,coordinate'  // Any of: none, coordinate, umi
+params.dedup_cell_tag  = 'CR'          // 'CR' (raw, recommended) or 'CB' (corrected)
+params.callers         = 'bcftools,reditools3,gatk,jacusa2'  // also: scallele, cellsnp
 params.bam_types       = 'sample,sampleRmDup,sampleUmiDup,recal,recalq20,goodCells,goodCellsRmDup,goodCellsUmiDup,annotated,annotatedRmDup,annotatedUmiDup,celltype,celltypeRmDup,celltypeUmiDup'
-// Cell-type-level discovery: when true, each merged sample BAM is split by cell
-// type (via celltype_annot) up-front and EACH cell type becomes its own sample
-// (id = <sample>__<celltype>). The full sample-level matrix (dedup none/
-// coordinate/umi + BQSR recal/recalq20) then runs per cell type -> split-then-
-// dedup and BQSR-per-celltype, with unique output paths (no id collision).
-// Use sample-level bam_types (sample,sampleRmDup,sampleUmiDup,recal,recalq20).
+// Each cell type becomes its own sample (id = <sample>__<celltype>) and runs the
+// full sample-level matrix. Use sample-level bam_types only.
 params.split_by_celltype   = false
-params.min_celltype_cells  = 0   // In split_by_celltype mode, drop cell types with fewer cells (0 = keep all)
+params.min_celltype_cells  = 0   // split_by_celltype: drop cell types with fewer cells (0 = keep all)
 params.qual            = 30      // Base/mapping quality threshold
+params.bcftools_baq    = true    // true = bcftools default (partial BAQ); false = -B
 params.adaptive_windows = '0,20,40,60,80,100,120,140,160,180,200'
-// Pass 1 of the window step (remove sites with another mismatch type within w1 bp). Off since
-// 2026-10-01: only the clustered-sites pass (w2, searched over adaptive_windows) is applied.
+// Remove sites with another mismatch type within w1 nt (w1 searched over adaptive_windows).
 params.mismatch_window_filter = false
-params.min_cov         = 10      // Minimum read coverage at a site
-params.strand_modes    = 'annotation'  // Strand assignment modes to benchmark: 'annotation', 'hybrid', or 'annotation,hybrid'
-params.strand_ambiguity_threshold = 0.3  // For hybrid mode: read-strand ambiguity cutoff
+// Keep only sites with another site within w2 nt (off since v8).
+params.clustered_filter = false
+params.min_cov         = 10
+params.strand_modes    = 'annotation'  // Any of: annotation, hybrid, caller
+params.strand_ambiguity_threshold = 0.3  // hybrid mode: read-strand ambiguity cutoff
 
-// Per-cell discovery parameters (second-pass mode)
-params.percell_analyses      = true    // Step 6 per-cell split + mpileup/AEI. Set false for caller-comparison-only runs (avoids the memory-heavy SINTO_SPLIT_PERCELL).
-params.percell_calling       = false   // Enable per-cell discovery mode (Step 7)
-params.percell_aei           = true    // Phase 1 chunked RNAEditingIndexer inside PERCELL_CALLING. Set false for discovery-only (variant-calling) runs.
-params.percell_caller        = null    // Required when percell_calling=true: 'bcftools', 'reditools3', 'gatk', 'jacusa2', 'scallele'
-params.percell_bam_type      = null    // Required when percell_calling=true: which BAM type to use
+params.percell_analyses      = true    // Step 6; false avoids the memory-heavy SINTO_SPLIT_PERCELL
+params.percell_calling       = false   // Step 7
+params.percell_aei           = true
+params.percell_caller        = null    // Required with percell_calling
+params.percell_bam_type      = null    // Required with percell_calling
 params.percell_chunk_size    = 100     // Cells per RNAEditingIndexer chunk
-params.rnaeditingindexer_path = null   // Path to RNAEditingIndexer install dir
-params.aei_genome            = null    // RNAEditingIndexer --genome (e.g., 'hg38')
-params.aei_regions_bed       = null    // Custom repeat regions BED for AEI
-params.aei_snps_bed          = null    // Custom SNPs BED for AEI
-params.aei_refseq_bed        = null    // Custom RefSeq BED for AEI
-params.aei_expression_bed    = null    // Custom gene expression BED for AEI
-params.min_alt               = 3       // Minimum alt allele read count (--alt_rule count)
-params.min_edit_level        = 0.01    // Minimum editing level
-// Alt-read support rule: 'count' (cov_alt >= min_alt) or 'binom' (alt count
-// significantly above the sequencing error rate). `count` is the historical
-// default and is kept as the default so existing runs are unchanged.
-// min_alt=3 is the BINDING sensitivity threshold, not min_edit_level: it implies
-// editing >= 3/coverage, i.e. 8.3% at the median depth of 36 reads, while
-// min_edit_level=0.01 binds on only 2.58% of sites. See bin/downstream_filter.R.
+params.rnaeditingindexer_path = null
+params.aei_genome            = null    // e.g. 'hg38'
+params.aei_regions_bed       = null
+params.aei_snps_bed          = null
+params.aei_refseq_bed        = null
+params.aei_expression_bed    = null
+params.min_alt               = 3       // alt_rule 'count'
+params.min_edit_level        = 0.01
+// 'count' (cov_alt >= min_alt) or 'binom' (alt count above the sequencing error rate).
+// min_alt, not min_edit_level, is the binding sensitivity threshold.
 params.alt_rule              = 'count'
-params.seq_error_rate        = 0.001   // per-base error under the null, for 'binom'
-params.alt_binom_alpha       = 0.05    // significance threshold, for 'binom'
-params.min_alt_floor         = 2       // never accept a single alt read, for 'binom'
-params.jacusa2_min_score     = 1.25    // Minimum JACUSA2 quality score
-params.jacusa2_scatter       = false   // true: JACUSA2 as one task per chromosome (JACUSA2_CHROM + JACUSA2_GATHER) instead of one whole-genome JACUSA2_CALL1 task
-params.scallele_conda        = '/home/yng7/miniforge3/envs/scAllele'
+params.seq_error_rate        = 0.001   // binom only
+params.alt_binom_alpha       = 0.05    // binom only
+params.min_alt_floor         = 2       // binom only
+params.jacusa2_min_score     = 1.25
+params.jacusa2_scatter       = false   // one JACUSA2 task per chromosome
+// Software (envs/, containers/). conda_env and container are read in nextflow.config.
+params.conda_env             = null    // existing env prefix; else $SCRNA_CONDA_ENV, else envs/scRNAEditing.linux-64.lock.txt
+params.container             = null    // default ghcr.io/nytingale/scrnaediting:<version>
+params.scallele_conda        = "${projectDir}/envs/scAllele.yml"  // or an existing env prefix
 params.scallele_run_mode     = 'Variant_Caller'  // Variant_Caller | Full | Training
-params.cellsnp_bin           = '/home/yng7/miniforge3/envs/cellsnp/bin/cellsnp-lite'  // cellSNP-lite 1.2.3 (--callers cellsnp; not default)
-params.snp_subtract_modes    = 'off,on'  // Benchmark axis for per-sample SNP filtering. 'off'=dbSNP only; 'on'=dbSNP + caller's own per-sample genetic-variant blacklist. Only genotyping callers (gatk, bcftools) run 'on'; reditools3/jacusa2/scallele are 'off' only (NA).
-params.remove_100pct_editing = true    // Remove sites with 100% editing level
-params.save_intermediates    = 0       // Save intermediate tables from step N onwards (0=off)
-params.requant_editing       = true    // Re-quantify editing level + coverage at each site from the matching bam_type BAM (strand-aware pileup) and ADD canonical columns (edit_level_pileup, cov_pileup, edited_reads, ref_reads) to the published filtered/pre100 tables. Makes editing levels comparable across callers.
-params.requant_min_bq        = 30      // requant: min base quality for mpileup
-params.requant_min_mq        = 30      // requant: min mapping quality for mpileup
-params.requant_max_depth     = 1000000 // requant: samtools mpileup -d
-params.mito_chr              = null    // Mitochondrial chromosome override (auto-detect from GTF)
-params.qc_min_features       = 200     // goodCells: min genes detected in unannotated cells
-params.qc_max_features       = 6000    // goodCells: max genes detected in unannotated cells
-params.qc_max_pct_mt         = 20      // goodCells: max mitochondrial percent
-params.qc_min_counts         = 500     // goodCells: min UMIs/counts in unannotated cells
+params.cellsnp_bin           = 'cellsnp-lite'    // conda: path to the cellsnp env's binary
+// 'off' = dbSNP only; 'on' = dbSNP + the caller's per-sample blacklist (bcftools, gatk only).
+params.snp_subtract_modes    = 'off,on'
+params.remove_100pct_editing = true
+params.save_intermediates    = 0       // Save intermediate tables from step N on (0 = off)
+// Add pileup-based editing level and coverage columns (comparable across callers).
+params.requant_editing       = true
+params.requant_min_bq        = 30
+params.requant_min_mq        = 30
+params.requant_max_depth     = 1000000
+params.mito_chr              = null    // null = auto-detect from GTF
+params.qc_min_features       = 200     // goodCells QC of unannotated cells
+params.qc_max_features       = 6000
+params.qc_max_pct_mt         = 20
+params.qc_min_counts         = 500
 
-
-// ── Validate inputs (moved to workflow block for Nextflow >=26 compatibility) ──
-
-
-// Warn about called_barcodes after samplesheet is parsed (checked in workflow)
-
-
-// ── Include modules ─────────────────────────────────────────────────────────
 include { VALIDATE_BAMS        } from './modules/bam_validate'
 include { VALIDATE_FASTQ_READS } from './modules/fastq_validate'
 include { STARSOLO_ALIGN       } from './modules/starsolo'
@@ -147,11 +137,7 @@ include { PERCELL_MPILEUP      } from './modules/percell_calling'
 include { PERCELL_AEI          } from './modules/percell_calling'
 include { PERCELL_CALLING      } from './modules/percell_calling'
 
-
-// (Samplesheet parsing moved inside workflow block for Nextflow >=26 DSL2 compatibility)
-
-// Coerce CLI/params booleans: `--flag false` on the command line arrives as the
-// STRING "false", which is truthy in Groovy. Normalize to a real Boolean.
+// `--flag false` arrives as the string "false", which is truthy in Groovy.
 def toBool(v) {
     if (v instanceof Boolean) return v
     return (v?.toString()?.trim()?.toLowerCase() in ['true', '1', 'yes', 'y', 't', 'on'])
@@ -181,9 +167,7 @@ def findSoloFromBam(bamFile) {
     return solo.exists() ? findSoloFiltered(solo) : null
 }
 
-// Cell-type tier BAMs get their own id (<sample>__<celltype>, same scheme as
-// --split_by_celltype) so caller/filter outputs, which are named and joined by
-// meta.id, do not overwrite each other across cell types of one sample.
+// Outputs are named and joined by meta.id, so each cell type needs its own id;
 // parent_id keeps the sample id for sample-keyed joins (strandedness).
 def celltypeMeta(meta, ct) {
     meta + [ id: "${meta.id}__${ct}".toString(), parent_id: meta.id, celltype: ct ]
@@ -201,7 +185,6 @@ def flattenCelltype(celltype_out, label) {
     }
 }
 
-// SELECTIVE_MERGE celltype mode emits <celltype>.bam files (one per cell type).
 def flattenSelectiveCelltype(selmerge_out, label) {
     selmerge_out.flatMap { meta, bam_files, bai_files ->
         def bams = bam_files instanceof List ? bam_files : [bam_files]
@@ -222,43 +205,18 @@ workflow {
     def valid_dedup = ['none', 'coordinate', 'umi'] as Set
     def requested_dedup = params.dedup.tokenize(',')
 
-    // Validate per-cell discovery parameters
     if (toBool(params.percell_calling)) {
         if (!params.percell_caller)   { error "--percell_calling requires --percell_caller <bcftools|reditools3|gatk|jacusa2|scallele>" }
         if (!params.percell_bam_type) { error "--percell_calling requires --percell_bam_type <sample|sampleRmDup|annotated|...>" }
-        // Per-cell AEI (RNAEditingIndexer) is handled by Step 6 (PERCELL_AEI),
-        // not by PERCELL_CALLING; no rnaeditingindexer_path requirement here.
     }
-    // ── Parse samplesheet ───────────────────────────────────────────────
-    // CSV columns:
-    //   sample_id, bam, celltype_annot, called_barcodes, platform, fastq_r1, fastq_r2, cell_id
-    //
-    // Required: sample_id, celltype_annot
-    // Optional: called_barcodes — fallback cell list when no STARsolo/CellRanger
-    //           count matrix is available (e.g. Smart-seq2 QC-filtered cell_ids).
-    // Optional: count_matrix — 10x-style matrix dir (matrix.mtx + features + barcodes).
-    //           Auto-discovered from <bam_prefix>_Solo.out/GeneFull/filtered when omitted.
-    // Optional: qc_barcodes — precomputed goodCells list; skips metric QC.
-    // Optional: cell_id — cell identifier for per-cell BAM platforms (e.g. Smart-seq2).
-    //           When provided, the pipeline uses selective samtools merge (instead of sinto)
-    //           for goodCells/annotated/celltype BAM types, merging only the per-cell BAMs
-    //           whose cell_id matches the annotation file.
-    // One of: bam (if starting from BAMs) or fastq_r1+fastq_r2+platform (if remapping)
-    //
-    // Lane vs sample (IMPORTANT — correctness):
-    //   sample_id is the TRUE biological sample and the sample-level ANALYSIS
-    //   partition. Multiple rows sharing a sample_id are LANES / technical
-    //   replicates of that SAME sample (same cells → SAME barcodes); each row is
-    //   processed independently (align/validate/MD/unique-filter) and then MERGED
-    //   (samtools merge) before any analysis. Lanes are therefore NEVER treated as
-    //   separate samples; lane_id (from the BAM/FASTQ name) is only a pre-merge
-    //   join key and never a partition/output key.
-    //   DISTINCT biological samples MUST get DISTINCT sample_ids. Do NOT pool
-    //   different samples under one sample_id: 10x barcodes are reused across
-    //   samples, so a barcode-based split of the naively-merged BAM would MISASSIGN
-    //   reads. To deliberately pool cell types ACROSS samples (e.g. teratoma arms
-    //   T1-T4), use --split_by_celltype, which splits each row (sample) by cell
-    //   type BEFORE merging (collision-safe) rather than splitting a merged BAM.
+    // ── Parse samplesheet (columns: SAMPLESHEET_SPEC.md) ────────────────
+    // Optional columns not in the spec: count_matrix (10x matrix dir; default
+    // <bam_prefix>_Solo.out/GeneFull/filtered), qc_barcodes (precomputed goodCells
+    // list), rmdup_bam / umidup_bam (prebuilt dedup BAMs, step 3b).
+    // Rows sharing a sample_id are lanes of ONE sample and are merged before any
+    // analysis. Distinct samples need distinct sample_ids: 10x barcodes are reused
+    // across samples, so splitting a merged multi-sample BAM by barcode misassigns
+    // reads. To pool cell types across samples use --split_by_celltype.
 
     Channel
         .fromPath(params.input, checkIfExists: true)
@@ -283,7 +241,6 @@ workflow {
         }
         .set { ch_input }
 
-    // Per-sample inputs for goodCells QC (one process per sample_id)
     Channel
         .fromPath(params.input, checkIfExists: true)
         .splitCsv(header: true)
@@ -333,19 +290,13 @@ workflow {
     }
 
     // ── Step 1: Get per-lane BAMs, then merge by sample_id ────────────
-    // Each samplesheet row is a "lane" (or replicate). Multiple rows with the same
-    // sample_id are processed independently, then merged. Single-row samples are
-    // passed through with a symlink (no merge overhead).
-
     if (toBool(params.remap)) {
         ch_to_remap = ch_input
             .filter { meta, bam, annot, called_bc, r1, r2, cell_id -> r1 != null && r2 != null }
             .map { meta, bam, annot, called_bc, r1, r2, cell_id -> [ meta, annot, called_bc, r1, r2, cell_id ] }
 
-        // Validate FASTQ read identity (barcode vs cDNA) before alignment
         VALIDATE_FASTQ_READS(ch_to_remap.map { meta, annot, called_bc, r1, r2, cell_id -> [ meta, r1, r2 ] })
 
-        // Rejoin validated FASTQs with annotation, pass to STARSOLO_ALIGN
         ch_validated = VALIDATE_FASTQ_READS.out.validated
             .map { meta, bc_fq, cdna_fq -> [ meta.lane_id ?: meta.id, meta, bc_fq, cdna_fq ] }
             .combine(
@@ -385,9 +336,7 @@ workflow {
             .map { lane_id, meta, bam, bai, annot, called_bc, cell_id -> [ meta, bam, bai, annot, called_bc, cell_id ] }
     }
 
-    // Group per-lane BAMs by sample_id and merge
-    // ch_lane_bams: [meta, bam, bai, annot, called_bc, cell_id]
-    // After grouping: [sample_meta, [bam1, bam2, ...], [bai1, bai2, ...], annot, called_bc, [cell_id1, ...]]
+    // -> [sample_meta, [bams], [bais], annot, called_bc, [cell_ids] or null]
     ch_for_merge = ch_lane_bams
         .map { meta, bam, bai, annot, called_bc, cell_id ->
             [ meta.id, meta, bam, bai, annot, called_bc, cell_id ]
@@ -396,12 +345,8 @@ workflow {
         .map { sample_id, metas, bams, bais, annots, called_bcs, cell_ids ->
             def sample_meta = [id: sample_id, platform: metas[0].platform]
             def annot = annots[0]
-            // Lanes of one sample must share ONE annotation (same cells). If a
-            // sample_id groups rows with DIFFERENT annotation files, only the first
-            // is used for barcode-based tiers on the merged BAM (non-celltype path)
-            // — a silent drop that usually means distinct samples were pooled under
-            // one sample_id. Flag it (use distinct sample_ids, or --split_by_celltype
-            // which honours each row's own annotation).
+            // Only the first annotation is used on the merged BAM; differing ones
+            // usually mean distinct samples were pooled under one sample_id.
             if (!toBool(params.split_by_celltype)) {
                 def distinct_annots = annots.findAll { it != null }.collect { it.toString() }.unique()
                 if (distinct_annots.size() > 1) {
@@ -409,13 +354,11 @@ workflow {
                 }
             }
             def called_bc = called_bcs.find { it != null }
-            // cell_ids: list of cell identifiers (Smart-seq2) or list of nulls (10x)
             def has_cell_ids = cell_ids.any { it != null }
             [ sample_meta, bams, bais, annot, called_bc, has_cell_ids ? cell_ids : null ]
         }
 
     if (!toBool(params.split_by_celltype)) {
-        // Sample-level merge (all BAMs per sample_id → one merged BAM)
         MERGE_BAMS(ch_for_merge.map { meta, bams, bais, annot, called_bc, cell_ids -> [ meta, bams, bais ] })
 
         ch_raw_bams = MERGE_BAMS.out.bam
@@ -426,27 +369,16 @@ workflow {
             )
             .map { id, meta, bam, bai, annot, called_bc, cell_ids -> [ meta, bam, bai, annot, called_bc, cell_ids ] }
     } else {
-        // ── Cell-type-level discovery — COLLISION-SAFE split-then-merge ──────
-        // CRITICAL: 10x cell barcodes are REUSED across samples/lanes, so
-        // splitting a MERGED multi-sample BAM by raw CB would pool reads from
-        // different cells that happen to share a barcode → misassigned reads.
-        // Instead split EACH per-lane BAM (a single sample/lane, where barcodes
-        // ARE unique) by cell type using THAT lane's own annotation, then merge the
-        // per-cell-type fragments across lanes per (sample_id, celltype). No
-        // barcode is ever matched across wells, so misassignment is impossible by
-        // construction. Each cell type then becomes its own sample
-        // (id = <sample>__<celltype>) and the full sample-level matrix runs per
-        // cell type (split-then-dedup + BQSR-per-celltype), with unique output
-        // paths. The old 3e/3f/3g secondary splits are neutralized below
-        // (ch_raw_barcode emptied); request sample-level bam_types for these runs.
-        // Per-lane meta.id is temporarily set to lane_id so sinto output names /
-        // publishDir do not collide between lanes of the same sample.
+        // ── Cell type as sample: split each lane, then merge ─────────────
+        // 10x barcodes are reused across samples, so each lane BAM is split by
+        // its own annotation before merging per (sample_id, celltype); a merged
+        // BAM is never split by barcode. meta.id = lane_id keeps sinto outputs
+        // of lanes of one sample apart.
         ch_lane_for_ct = ch_lane_bams.map { meta, bam, bai, annot, called_bc, cell_id ->
             [ meta + [ id: (meta.lane_id ?: meta.id), arm: meta.id ], bam, bai, annot ]
         }
         SINTO_CELLTYPE_PERLANE(ch_lane_for_ct)
 
-        // Flatten per-lane cell-type BAMs; key by (sample_id, celltype) for pooling.
         ch_ct_frags = SINTO_CELLTYPE_PERLANE.out.celltype_bams.flatMap { meta, bam_list, bai_list ->
             def bams = bam_list instanceof List ? bam_list : [bam_list]
             def bais = bai_list instanceof List ? bai_list : [bai_list]
@@ -457,7 +389,6 @@ workflow {
             }
         }
 
-        // Pool fragments of the same (sample_id, celltype) across lanes.
         ch_ct_grouped = ch_ct_frags
             .groupTuple(by: 0)
             .map { key, bams, bais, plats ->
@@ -472,8 +403,7 @@ workflow {
         }
     }
 
-    // Determine if this run has per-cell BAMs (Smart-seq2) — affects celltype/goodCells strategy
-    // Per-cell data uses SELECTIVE_MERGE; barcode-platform data uses sinto
+    // Per-cell BAM platforms (Smart-seq2) use SELECTIVE_MERGE; barcode platforms use sinto.
     ch_percell_samples = ch_for_merge.filter { meta, bams, bais, annot, called_bc, cell_ids -> cell_ids != null }
     ch_barcode_samples = ch_for_merge.filter { meta, bams, bais, annot, called_bc, cell_ids -> cell_ids == null }
 
@@ -486,22 +416,15 @@ workflow {
     ch_strandedness = INFER_STRANDEDNESS.out.strandedness
 
     // ── Step 3: Generate all BAM type variants ──────────────────────────
-    // Each BAM type is a labeled channel: [meta, bam, bai, bam_label]
-    //
-    // Cell filter × Dedup matrix:
-    //                    none        coordinate(GATK)   umi(umi_tools)
-    //   sample:          sample      sampleRmDup              sampleUmiDup
-    //   goodCells:     goodCells goodCellsRmDup   goodCellsUmiDup
-    //   annotated:       annotated   annotatedRmDup     annotatedUmiDup
-    //   celltype:        celltype    celltypeRmDup      celltypeUmiDup
-    //   recal:           —           recal (GATK + BQSR, qual=params.qual)
-    //   recalq20:        —           recalq20 (GATK + BQSR, qual=20)
-    //   recaldefault:    —           GATK-only, recal BAM + GATK defaults
-    //                                (implicit whenever gatk + recal/recalq20)
-    //
-    // --dedup is comma-separated; all requested strategies run in parallel.
-    // A tier is built only if it is in --bam_types (or is --percell_bam_type),
-    // so sample-level runs never touch goodCells/annotated/celltype.
+    // Labeled channels [meta, bam, bai, bam_label]:
+    //                    none        coordinate (GATK)   umi (umi_tools)
+    //   sample:          sample      sampleRmDup         sampleUmiDup
+    //   goodCells:       goodCells   goodCellsRmDup      goodCellsUmiDup
+    //   annotated:       annotated   annotatedRmDup      annotatedUmiDup
+    //   celltype:        celltype    celltypeRmDup       celltypeUmiDup
+    //   recal / recalq20: coordinate dedup + BQSR, called at params.qual / 20
+    //   recaldefault:    recal BAM with GATK defaults (GATK only)
+    // A tier is built only if it is in --bam_types or is --percell_bam_type.
 
     def requested_bam_types = params.bam_types.tokenize(',')
     def requested_callers   = params.callers.tokenize(',')
@@ -516,6 +439,12 @@ workflow {
     def unknown_bam_types = requested_bam_types.findAll { !(it in known_bam_types) }
     if (unknown_bam_types) {
         error "--bam_types has unknown value(s): ${unknown_bam_types.join(', ')}. Allowed: ${known_bam_types.join(', ')}"
+    }
+    def known_callers = ['bcftools', 'reditools3', 'gatk', 'jacusa2', 'scallele', 'cellsnp']
+    def unknown_callers = requested_callers.findAll { !(it in known_callers) }
+    if (unknown_callers) {
+        error "--callers has unknown value(s): ${unknown_callers.join(', ')}. Allowed: ${known_callers.join(', ')}" +
+              (('giremi' in unknown_callers) ? ". GIREMI was removed (human/pm/METHOD_DECISIONS.md)." : '')
     }
     def pc_bam_type_req = toBool(params.percell_calling) ? params.percell_bam_type : null
     def wants = { String t -> (t in requested_bam_types) || t == pc_bam_type_req }
@@ -536,7 +465,7 @@ workflow {
 
     ch_base_bams = ch_raw_bams.map { meta, bam, bai, annot, called_bc, cell_ids -> [ meta, bam, bai ] }
 
-    // goodCells construction: annotated ∪ QC-passing unannotated
+    // goodCells = annotated ∪ QC-passing unannotated
     if (toBool(params.remap)) {
         ch_remap_mats = STARSOLO_ALIGN.out.solo_out
             .map { meta, solo -> [ meta.id, findSoloFiltered(solo) ] }
@@ -561,21 +490,14 @@ workflow {
     // ── 3a. sample — raw BAMs (no dedup) ────────────────────────────────
     ch_sample = ch_base_bams.map { meta, bam, bai -> [ meta, bam, bai, 'sample' ] }
 
-    // Per-cell platform samples (Smart-seq2). Empty in celltype-as-sample mode.
     ch_percell_src = toBool(params.split_by_celltype) ? Channel.empty() : ch_percell_samples
 
     // ── 3b. Coordinate-deduped BAMs (GATK MarkDuplicates) ──────────────
-    //   Barcode platforms: MarkDuplicates on the merged BAM, cell-aware via CR.
-    //   Per-cell platforms: dedup EACH cell, then merge (SS2 reads carry no cell
-    //   tag, so a merged-BAM dedup would collapse fragments across cells). This
-    //   merged BAM is sampleRmDup and feeds recal/recalq20.
-    // Both dedup strategies (3b coordinate, 3c UMI) run per chromosome and per
-    // GEM well (@RG SM; each well deduplicated separately), then merge
-    // (modules/dedup.nf). A sample
-    // that pools GEM groups WITHOUT @RG (teratoma merged arms) instead takes a
-    // prebuilt BAM from the samplesheet (`rmdup_bam` / `umidup_bam` = per-
-    // teratoma dedup, then merge). The prebuilt paths are read as a side
-    // channel so `meta` -- and every cached task hash -- is unchanged.
+    //   Per-cell platforms dedup each cell, then merge: SS2 reads carry no cell
+    //   tag, so a merged-BAM dedup would collapse fragments across cells.
+    // 3b and 3c run per chromosome and per GEM well (@RG SM). Samples pooling GEM
+    // wells without @RG take a prebuilt BAM (rmdup_bam / umidup_bam), read as a
+    // side channel so `meta`, and every cached task hash, is unchanged.
     def dedup_chroms = params.main_chroms
         ? file(params.main_chroms).readLines().collect { it.trim() }.findAll { it } + ['_other']
         : ['_all']
@@ -597,8 +519,7 @@ workflow {
                     return [ meta, bam, bai ]
             }
     }
-    // [meta, chrom, file(s)...] per chromosome -> [meta, [files], ...] per sample,
-    // emitted as soon as all dedup_chroms pieces of that sample are done.
+    // Emits a sample as soon as all of its dedup_chroms pieces are done.
     def scatter_gather_key = { ch_out -> ch_out
         .map { row -> [ groupKey(row[0], dedup_chroms.size()) ] + row[2..-1] }
         .groupTuple()
@@ -625,7 +546,6 @@ workflow {
     }
 
     // ── 3c. UMI-deduped BAMs (umi_tools) ───────────────────────────────
-    //   Same scatter / GEM-group / prebuilt routing as 3b (see above).
     if ('umi' in requested_dedup_strategies) {
         ch_umi_route = route_prebuilt.call(ch_base_bams, 'umidup_bam')
         UMI_DEDUP_CHROM(ch_umi_route.scatter.combine(Channel.fromList(dedup_chroms)), dedup_main)
@@ -633,7 +553,6 @@ workflow {
         ch_umi_dedup = UMI_DEDUP_GATHER.out.bam.mix(ch_umi_route.prebuilt)
     }
 
-    // Sample-level deduped labels
     ch_sampleRmDup  = ('coordinate' in requested_dedup_strategies)
                 ? ch_coord_dedup.map { meta, bam, bai -> [ meta, bam, bai, 'sampleRmDup' ] }
                 : Channel.empty()
@@ -642,9 +561,7 @@ workflow {
                 : Channel.empty()
 
     // ── 3d. Recalibrated BAMs (coordinate dedup + SplitNCigar + BQSR) ──
-    // main_chroms handle (also (re)used by the caller stage below): restricts
-    // GATK read traversal to requested chromosomes so externally-aligned BAMs
-    // with extra/renamed scaffolds don't abort SplitNCigarReads/BaseRecalibrator.
+    // main_chroms keeps GATK off extra / renamed scaffolds, which abort it.
     main_chroms = params.main_chroms ? file(params.main_chroms) : file('NO_FILE')
     def needs_recal = ('recal' in requested_bam_types || 'recalq20' in requested_bam_types)
     if (needs_recal && 'coordinate' in requested_dedup_strategies) {
@@ -657,13 +574,9 @@ workflow {
             main_chroms
         )
         ch_recal = GATK_BQSR.out.bam.map { meta, bam, bai -> [ meta, bam, bai, 'recal' ] }
-        // recalq20: same BQSR'd BAM but variant calling uses qual=20 instead of params.qual
         ch_recalq20 = GATK_BQSR.out.bam.map { meta, bam, bai ->
             [ meta + [qual_override: 20], bam, bai, 'recalq20' ]
         }
-        // recaldefault: GATK-only supplementary run — recal BAM, GATK defaults.
-        // (GATK gets one extra run vs the other callers to show default-setting
-        // performance; only GATK consumes this, not the other callers.)
         ch_gatk_default = GATK_BQSR.out.bam.map { meta, bam, bai -> [ meta, bam, bai, 'recaldefault' ] }
     } else {
         ch_recal = Channel.empty()
@@ -671,46 +584,25 @@ workflow {
         ch_gatk_default = Channel.empty()
     }
 
-    // ── 3e. goodCells — annotated ∪ QC-passing unannotated ───────────
-    //        Barcode platforms: sinto filterbarcodes
-    //        Per-cell platforms (SS2): selective samtools merge of matching BAMs
-
-    // Split raw BAMs into barcode-platform vs per-cell-platform.
-    // In celltype-as-sample mode each input is ALREADY one cell type, so the
-    // secondary goodCells/annotated/celltype splits (3e/3f/3g, all derived from
-    // ch_raw_barcode / ch_percell_src) must be disabled — emptying both
-    // neutralizes every sinto/selective-merge call in that block.
+    // ── 3e. goodCells ───────────────────────────────────────────────────
+    // With --split_by_celltype each input is already one cell type: emptying
+    // ch_raw_barcode and ch_percell_src disables 3e-3g.
     ch_raw_barcode = toBool(params.split_by_celltype)
         ? Channel.empty()
         : ch_raw_bams.filter { meta, bam, bai, annot, called_bc, cell_ids -> cell_ids == null }
 
-    // Feed a tier's process only when one of its labels is wanted; an empty
-    // input channel means the process is wired but never launches a task.
-    // Per-cell platform RmDup tiers merge the per-cell-deduped BAMs from 3b.
+    // An empty input channel wires a process without launching a task.
     def gate = { List labels, ch -> labels.any { wants.call(it) } ? ch : Channel.empty() }
 
-    // >>> ONLY BUILD THE CELL-TYPE TIER IF A CELLTYPE bam_type WAS ASKED FOR. <<<
-    // SINTO_EXTRACT_CELLTYPE used to run unconditionally off ch_raw_barcode, so a
-    // SAMPLE-LEVEL run was forced to split by cell type and then throw the result
-    // away. That is not merely wasted compute: celltype_split.nf hard-errors when
-    // an annotation maps one barcode to >1 cell type, which is UNAVOIDABLE for a
-    // merged multi-sample BAM because 10x barcodes are reused across samples. The
-    // guard is right — a raw-CB split of a merged BAM misassigns reads — but it
-    // killed the whole run over a tier that was not requested. Measured: the
-    // merged teratoma arms collide on 8 barcodes (1 AAVS1_ctrl, 7 NTC_ctrl) of
-    // 14,511, and run 1710208 was cancelled by exactly that error on
-    // merged_AAVS1_ctrl barcode ACCGTTCAGATAGCAT.
-    //
-    // Cell-type analysis is done properly by the celltype-as-sample track
-    // (--split_by_celltype, which splits each lane before merging), so a
-    // sample-level run has no reason to touch it.
+    // Build the cell-type tier only when asked: celltype_split.nf errors on
+    // barcodes assigned to >1 cell type, which merged multi-sample BAMs always
+    // have (10x barcodes are reused across samples).
     def wants_celltype = ['celltype', 'celltypeRmDup', 'celltypeUmiDup'].any { wants.call(it) }
     ch_ct_source = wants_celltype ? ch_raw_barcode : Channel.empty()
     if (!wants_celltype) {
         log.info "No celltype bam_type requested — skipping the cell-type split tier."
     }
 
-    // Barcode platform → sinto
     ch_for_called_sinto = ch_raw_barcode
         .map { meta, bam, bai, annot, called_bc, cell_ids -> [ meta.id, meta, bam, bai ] }
         .combine(ch_good_bc, by: 0)
@@ -720,7 +612,6 @@ workflow {
         [ meta, bam, bai, 'goodCells' ]
     }
 
-    // Per-cell platform → selective merge
     ch_for_called_selmerge = ch_percell_src
         .map { meta, bams, bais, annot, called_bc, cell_ids ->
             [ meta.id, meta, bams, bais, cell_ids ]
@@ -737,8 +628,6 @@ workflow {
     ch_goodCells = ch_goodCells_sinto.mix(ch_goodCells_selmerge)
 
     // goodCells + coordinate dedup
-    //   Barcode platforms: sinto-filter the cell-aware MarkDuplicates BAM.
-    //   Per-cell platforms: selective merge of the per-cell-deduped BAMs.
     if ('coordinate' in requested_dedup_strategies) {
         ch_coord_with_called = ch_coord_dedup
             .map { meta, bam, bai -> [ meta.id, meta, bam, bai ] }
@@ -784,7 +673,6 @@ workflow {
     }
 
     // ── 3f. annotated — filtered to annotation barcodes ────────────────
-    // Barcode platform → sinto
     ch_for_annot_sinto = ch_raw_barcode.map { meta, bam, bai, annot, called_bc, cell_ids ->
         [ meta, bam, bai, annot, 'annotated' ]
     }
@@ -793,7 +681,6 @@ workflow {
         [ meta, bam, bai, 'annotated' ]
     }
 
-    // Per-cell platform → selective merge using annotation file
     ch_for_annot_selmerge = ch_percell_src.map { meta, bams, bais, annot, called_bc, cell_ids ->
         [ meta, bams, bais, cell_ids, annot, 'annotated', 'filter' ]
     }
@@ -846,13 +733,11 @@ workflow {
 
     // ── 3g. Cell-type BAMs (one BAM per cell type) ───────────────────────
 
-    // Barcode platform → sinto celltype extraction
     SINTO_EXTRACT_CELLTYPE(gate.call(['celltype'], ch_ct_source.map { meta, bam, bai, annot, called_bc, cell_ids ->
         [ meta, bam, bai, annot ]
     }))
     ch_celltype_sinto = flattenCelltype(SINTO_EXTRACT_CELLTYPE.out.celltype_bams, 'celltype')
 
-    // Per-cell platform → selective merge by celltype
     ch_for_ct_selmerge = ch_percell_src.map { meta, bams, bais, annot, called_bc, cell_ids ->
         [ meta, bams, bais, cell_ids, annot, 'celltype', 'celltype' ]
     }
@@ -914,8 +799,6 @@ workflow {
     if ('celltypeUmiDup'     in requested_bam_types) ch_all_labeled_bams = ch_all_labeled_bams.mix(ch_celltypeUmiDup)
 
     // ── Step 4: Variant calling ─────────────────────────────────────────
-    // Join strandedness with labeled BAMs for callers that need it
-    // ch_strandedness is [meta, strandedness_string] keyed by meta.id
     ch_bams_with_strand = ch_all_labeled_bams
         .map { meta, bam, bai, label -> [ meta.parent_id ?: meta.id, meta, bam, bai, label ] }
         .combine(
@@ -933,17 +816,15 @@ workflow {
         REDITOOLS3(ch_bams_with_strand, genome_fasta, main_chroms)
     }
     if ('gatk' in requested_callers) {
-        // GATK also gets the supplementary default-settings run on the recal BAM
-        // (recaldefault); other callers do not. Mixed only into GATK's input.
+        // recaldefault (GATK defaults on the recal BAM) is run by GATK only.
         GATK_HAPLOTYPECALLER(ch_all_labeled_bams.mix(ch_gatk_default), genome_fasta, main_chroms)
     }
-    // Scatter units for the per-chromosome callers (scAllele; JACUSA2 with --jacusa2_scatter).
     def sc_chroms = params.main_chroms
         ? file(params.main_chroms).readLines().collect { it.trim() }.findAll { it }
         : file("${params.genome_fasta}.fai", checkIfExists: true).readLines().collect { it.tokenize('\t')[0] }
     def ch_jacusa2_variants = Channel.empty()
     if ('jacusa2' in requested_callers) {
-        if (params.jacusa2_scatter) {
+        if (toBool(params.jacusa2_scatter)) {
             if (!params.main_chroms)
                 log.warn "JACUSA2: no --main_chroms, scattering over all ${sc_chroms.size()} reference contigs"
             JACUSA2_CHROM(ch_bams_with_strand.combine(Channel.fromList(sc_chroms)), genome_fasta)
@@ -963,7 +844,6 @@ workflow {
         CELLSNP_LITE(ch_all_labeled_bams, genome_fasta, main_chroms)
     }
     if ('scallele' in requested_callers) {
-        // One task per chromosome, gathered in chromosome order (modules/variant_calling.nf).
         if (!params.main_chroms)
             log.warn "scAllele: no --main_chroms, scattering over all ${sc_chroms.size()} reference contigs"
         SCALLELE_CHROM(ch_bams_with_strand.combine(Channel.fromList(sc_chroms)), genome_fasta)
@@ -976,16 +856,13 @@ workflow {
     }
 
     // ── Step 5: Downstream R processing ─────────────────────────────────
-    // Collect all variant outputs and run filtering on each
     snp_file      = params.snp_file     ? file(params.snp_file) : file('NO_FILE')
     strand_annots = params.strand_annots ? file(params.strand_annots) : file('NO_FILE')
     alu_annots    = params.alu_annots    ? file(params.alu_annots) : file('NO_FILE')
 
-    // Each entry carries a per-sample genetic-variant blacklist path as a 5th
-    // element. Genotyping callers (gatk 1/1, bcftools 1/1) emit one and are
-    // joined by (id, bam_label); reditools3, jacusa2 and scallele pass NO_FILE.
-    // scAllele's PASS is not a genotype call: its GLM was trained on genetic
-    // variants with editing excluded, and well-supported edits PASS.
+    // 5th element: per-sample genetic-variant blacklist (bcftools / gatk 1/1 calls;
+    // NO_FILE otherwise). scAllele's PASS is not a genotype call: well-supported
+    // edits PASS too.
     no_blacklist = file('NO_FILE')
     def join_blacklist = { var_ch, blk_ch ->
         var_ch.map { m, c, bl, v -> [ [m.id, bl], m, c, bl, v ] }
@@ -999,10 +876,7 @@ workflow {
     if ('jacusa2'     in requested_callers) ch_all_variants = ch_all_variants.mix(ch_jacusa2_variants.map { m, c, bl, v -> [ m, c, bl, v, no_blacklist ] })
     if ('scallele'    in requested_callers) ch_all_variants = ch_all_variants.mix(SCALLELE_GATHER.out.variants.map { m, c, bl, v -> [ m, c, bl, v, no_blacklist ] })
     if ('cellsnp'     in requested_callers) ch_all_variants = ch_all_variants.mix(CELLSNP_LITE.out.variants.map { m, c, bl, v -> [ m, c, bl, v, no_blacklist ] })
-
-    // ── Benchmark axis: per-sample SNP subtraction (off = dbSNP only,
-    // on = dbSNP + caller's own blacklist). 'on' only for callers that
-    // produced a blacklist; pileup-only callers stay 'off' (NA).
+    // ── Benchmark axis: per-sample SNP subtraction ('on' needs a blacklist) ──
     def snp_modes = params.snp_subtract_modes.tokenize(',')
     ch_variants_snpmodes = ch_all_variants.flatMap { meta, caller, bam_label, variants, blacklist ->
         def rows = []
@@ -1011,33 +885,16 @@ workflow {
         return rows
     }
 
-    // Expand with strand modes for benchmarking
     def requested_strand_modes = params.strand_modes.tokenize(',')
     ch_strand_modes = Channel.fromList(requested_strand_modes)
 
-    // Which strand modes are meaningful for which caller.
-    //
-    // 'hybrid' only applies to bcftools and gatk, which carry I16/SB read-strand
-    // counts. For the others hybrid would fall back to annotation and produce an
-    // IDENTICAL duplicate, so those combos are dropped to avoid redundant work.
-    //
-    // 'caller' keeps the caller's OWN strand call and only applies to callers
-    // that actually emit one: reditools3 (Strand column, 0/1/2/*), jacusa2, and
-    // scallele (read-cluster strand of its RNA_EDITING? tag; caller mode keeps
-    // only the tagged rows, see bin/scallele_io.py). bcftools and gatk hardcode
-    // df$strand = "+", so 'caller' mode would be a constant "+" for them.
-    //
-    // NB 'caller' is deliberately NOT gated on library strandedness. On an
-    // unstranded library the caller returns no strand and the mode degenerates
-    // to "everything plus", misassigning mismatch types — which is precisely
-    // what a user of that tool on that library would get, and is the finding
-    // that argues for annotation-based stranding as the default.
+    // 'hybrid' needs I16/SB read-strand counts (bcftools, gatk); for other callers it
+    // would duplicate 'annotation'. 'caller' needs a caller-emitted strand
+    // (reditools3, jacusa2, scallele); bcftools and gatk report "+" only.
+    // 'caller' is deliberately not gated on library strandedness: on unstranded
+    // libraries it shows what users of that tool would get.
     def hybrid_callers        = ['bcftools', 'gatk']
     def caller_strand_callers = ['reditools3', 'jacusa2', 'scallele']
-    // Matched per MODE, not per caller. The previous form
-    // (`strand_mode == 'annotation' || caller in hybrid_callers`) let ANY
-    // non-annotation mode through for bcftools/gatk, so adding 'caller' to
-    // --strand_modes would silently have produced constant-"+" runs for them.
     ch_variants_x_strand = ch_variants_snpmodes
         .combine(ch_strand_modes)
         .filter { meta, caller, bam_label, variants, snp_sub, blacklist, strand_mode ->
@@ -1049,8 +906,7 @@ workflow {
             [ meta, caller, bam_label, variants, strand_mode, blacklist, snp_sub ]
         }
 
-    // scAllele goes through its own copy of DOWNSTREAM_R (modules/downstream_r.nf);
-    // the ch_ds_* channels below merge both.
+    // scAllele has its own copy of DOWNSTREAM_R.
     ch_ds_split = ch_variants_x_strand.branch { row ->
         scallele: row[1] == 'scallele'
         other:    true
@@ -1079,16 +935,12 @@ workflow {
     ch_ds_metrics  = DOWNSTREAM_R.out.metrics.mix(DOWNSTREAM_R_SCALLELE.out.metrics)
 
     // ── Step 5b: Re-quantify editing level + coverage (strand-aware pileup) ──
-    // Add canonical, method-independent columns to the published filtered/pre100
-    // tables using the SAME bam_type BAM that produced each call. When enabled,
-    // DOWNSTREAM_R skips publishing the raw filtered/pre100 (REQUANT publishes
-    // the requantified copies to the same 04_filtered path).
+    // Uses the bam_type BAM that produced each call. REQUANT_PILEUP, not
+    // DOWNSTREAM_R, then publishes filtered / pre100 to 04_filtered.
     if (toBool(params.requant_editing)) {
-        // BAM lookup keyed by (sample id, bam_label); include GATK's recaldefault
         ch_bam_lut = ch_all_labeled_bams.mix(ch_gatk_default)
             .map { m, bam, bai, label -> [ [m.id, label], bam, bai ] }
 
-        // Join filtered + pre100 on (id, caller, bam_label, strand_mode, snp_sub)
         ch_fp = ch_ds_filtered
             .map { m, c, bl, sm, ss, f -> [ [m.id, c, bl, sm, ss], m, c, bl, sm, ss, f ] }
             .join(
@@ -1096,7 +948,6 @@ workflow {
             )
             .map { key, m, c, bl, sm, ss, f, p -> [ [m.id, bl], m, c, bl, sm, ss, f, p ] }
 
-        // Attach matching BAM (by id, bam_label), then strandedness -> libtype (by id)
         ch_requant_in = ch_fp
             .combine(ch_bam_lut, by: 0)
             .map { key, m, c, bl, sm, ss, f, p, bam, bai -> [ m.parent_id ?: m.id, m, c, bl, sm, ss, f, p, bam, bai ] }
@@ -1110,7 +961,6 @@ workflow {
         )
     }
 
-    // Collate all stepwise mismatch tables into one file
     ch_ds_stepwise
         .map { meta, caller, bam_label, strand_mode, tsv -> tsv }
         .collectFile(
@@ -1120,7 +970,6 @@ workflow {
             skip: 1
         )
 
-    // Collate all per-run metrics into master results table
     ch_all_metrics = ch_ds_metrics
         .map { meta, caller, bam_label, strand_mode, tsv -> tsv }
         .collectFile(
@@ -1130,14 +979,9 @@ workflow {
             skip: 1
         )
 
-    // Generate side-by-side comparison report
     COLLATE_RESULTS(ch_all_metrics)
 
     // ── REDIportal overlap summary (human) ──────────────────────────────────
-    // For every discovered site table, count known-editing (REDIportal) vs novel
-    // sites + fractions -> summary/rediportal_overlap.tsv for figure plotting.
-    // Gated on --rediportal so non-human datasets skip it. REDIportal is loaded
-    // once; all pre100 tables are scored in a single R session.
     if (params.rediportal) {
         ch_pre100_all = ch_ds_pre100
             .map { m, c, bl, sm, ss, p -> p }
@@ -1145,7 +989,6 @@ workflow {
         REDIPORTAL_OVERLAP(ch_pre100_all, file(params.rediportal))
     }
 
-    // Collate barcode coverage metrics from all filter processes
     ch_coverage = Channel.empty()
     ch_coverage = ch_coverage.mix(SINTO_GOOD_CELLS.out.coverage)
     ch_coverage = ch_coverage.mix(SINTO_ANNOTATED.out.coverage)
@@ -1175,11 +1018,7 @@ workflow {
             skip: 1
         )
 
-    // ── Step 6: Per-cell analyses ───────────────────────────────────────
-    // sinto per-cell splitting only works on barcode platforms (CB tags).
-    // Gated by params.percell_analyses (default true). Set false for caller-
-    // comparison-only runs (e.g. scAllele-only): SINTO_SPLIT_PERCELL(pbmc2) is
-    // memory-heavy and irrelevant to site-level caller benchmarking.
+    // ── Step 6: Per-cell analyses (barcode platforms only: needs CB tags) ──
     if (toBool(params.percell_analyses)) {
     ch_barcode_base_bams = ch_base_bams
         .map { meta, bam, bai -> [ meta.id, meta, bam, bai ] }
@@ -1206,9 +1045,6 @@ workflow {
 
     // ── Step 7: Per-cell discovery (optional, second-pass mode) ─────────
     if (toBool(params.percell_calling)) {
-        // Use the BAM channel matching the requested BAM type
-        // ch_base_bams is the merged BAM (sample equivalent)
-        // For other BAM types, route to the appropriate channel
         def pc_bam_type = params.percell_bam_type
 
         // Cell-type tiers are excluded: one sample yields several BAMs there,
@@ -1230,10 +1066,7 @@ workflow {
         }
         ch_percell_bams = pc_sources[pc_bam_type].map { meta, bam, bai, label -> [ meta, bam, bai ] }
 
-        // Per-sample barcode list restricting which cells to split (avoids
-        // splitting background barcodes when using the sample BAM). In
-        // split_by_celltype mode each BAM is one cell type already, so all of
-        // its CBs are used (NO_FILE).
+        // Barcode list keeps background barcodes of the sample BAM out.
         if (toBool(params.split_by_celltype)) {
             ch_percell_in = ch_percell_bams.map { meta, bam, bai -> [ meta, bam, bai, file('NO_FILE') ] }
         } else {
@@ -1246,8 +1079,7 @@ workflow {
                 .map { id, meta, bam, bai, bc -> [ meta, bam, bai, bc ] }
         }
 
-        // Split the chosen BAM into per-cell BAMs ONCE (sorted+indexed), then
-        // discover per cell -- avoids the O(cells x whole-BAM) re-scan.
+        // Split once, then call per cell (avoids one whole-BAM scan per cell).
         SINTO_SPLIT_PERCELL_DISC(ch_percell_in)
 
         PERCELL_CALLING(

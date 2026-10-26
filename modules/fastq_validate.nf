@@ -1,10 +1,6 @@
 /*
- * FASTQ read identity validation module
- *
- * For SRA-downloaded data, file numbering (_1, _2) does NOT reliably indicate
- * read type. This module verifies that the fastq_r1 and fastq_r2 columns in
- * the samplesheet correctly map to barcode and cDNA reads by inspecting actual
- * read content (length differences and polyT signatures).
+ * Checks that fastq_r1 / fastq_r2 are the barcode / cDNA reads (SRA numbering is
+ * unreliable), from read length and polyT.
  */
 
 def getBarcodeCore(platform) {

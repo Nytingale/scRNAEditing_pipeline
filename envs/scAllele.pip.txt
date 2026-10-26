@@ -1,0 +1,4 @@
+glob2==0.7
+scallele==0.0.9.7
+scipy==1.15.3
+vcfpy==0.14.2

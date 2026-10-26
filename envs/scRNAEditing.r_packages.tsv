@@ -1,0 +1,16 @@
+package	version	source
+bitops	1.1-0	CRAN
+dqrng	0.4.1	CRAN
+maps	3.4.3	CRAN
+zoo	1.9-0	CRAN
+stringi	1.8.9	CRAN
+data.table	1.18.6.1	CRAN
+RANN	2.6.3	CRAN
+pbapply	1.7-5	CRAN
+httr	1.4.9	CRAN
+remotes	2.5.0	CRAN
+rmarkdown	2.32	CRAN
+fields	17.3	CRAN
+leiden	0.4.3.1	CRAN
+Seurat	5.5.1	CRAN
+DoubletFinder	2.0.6	github:chris-mcginnis-ucsf/DoubletFinder@1b244d8f0d54b4b1cb4365639931bbb16f01e1cd

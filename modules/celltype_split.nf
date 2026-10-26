@@ -1,28 +1,13 @@
 /*
- * Cell-type splitting module using sinto
- *
- * SINTO_EXTRACT_QC is a general-purpose barcode-filter process. It is aliased
- * in main.nf under different names for different purposes:
- *   SINTO_GOOD_CELLS          — goodCells       (annotated ∪ QC-passing unannotated)
- *   SINTO_GOOD_CELLS_RMDUP    — goodCellsRmDup  (same, applied to GATK-deduped BAMs)
- *   SINTO_GOOD_CELLS_UMIDUP   — goodCellsUmiDup (same, applied to UMI-deduped BAMs)
- *   SINTO_ANNOTATED             — annotated       (annotation barcodes only)
- *   SINTO_ANNOTATED_RMDUP       — annotatedRmDup  (annotation barcodes on GATK-deduped BAMs)
- *   SINTO_ANNOTATED_UMIDDUP     — annotatedUmiDup (annotation barcodes on UMI-deduped BAMs)
+ * sinto barcode filtering and cell-type splitting. SINTO_EXTRACT_QC is a generic
+ * barcode filter, aliased in main.nf as SINTO_GOOD_CELLS* and SINTO_ANNOTATED*.
  */
 
 process SINTO_EXTRACT_QC {
     tag { "${meta.id}:${filter_label}" }
     label 'process_medium'
-    // process_medium's 8 h wall is not enough for deep pseudobulk BAMs: the 84 GB
-    // Replogle NTC arm was SIGKILLed at exactly 8 h. Two compounding causes —
-    // sinto filterbarcodes defaults to nproc=1, so the task held 4 slots and ran
-    // on one (the -p below fixes that, matching SINTO_EXTRACT_CELLTYPE and
-    // SINTO_SPLIT_PERCELL, which already pass it), and 8 h was simply too short.
-    // The wall-clock bump lives in nextflow.config (`withName: SINTO_(GOOD_CELLS|
-    // ANNOTATED).*`) because a config selector overrides a `time` set here.
-    // Falling back to 'finish' rather than the default 'terminate' keeps a failure
-    // here from hard-killing multi-day caller tasks that are already in flight.
+    // Time: nextflow.config. 'finish' keeps a failure here from killing caller
+    // tasks already in flight.
     errorStrategy { task.exitStatus in [137, 140, 143, 104, 71] && task.attempt <= 2 ? 'retry' : 'finish' }
     maxRetries    2
     publishDir { "${params.outdir}/${meta.id}/02_barcode_filtered/${filter_label}" }, mode: 'copy'
@@ -207,10 +192,7 @@ process SINTO_EXTRACT_CELLTYPE {
 process SINTO_SPLIT_PERCELL {
     tag { "${meta.id}" }
     label 'process_high'
-    // sinto opens one output BAM per cell (thousands of buffered handles) and
-    // duplicates them per worker, so peak RAM scales with cpus. Few workers +
-    // escalating memory rather than 8-way parallel — set in nextflow.config,
-    // since `cpus`/`memory` here are silently overridden by 'process_high'.
+    // cpus / memory: nextflow.config (sinto's per-cell file handles scale RAM with cpus).
     errorStrategy { task.exitStatus in [137, 140, 143, 104, 71] ? 'retry' : 'terminate' }
     maxRetries 2
     publishDir { "${params.outdir}/${meta.id}/04_percell_bams" }, mode: 'copy'
@@ -222,10 +204,8 @@ process SINTO_SPLIT_PERCELL {
     tuple val(meta), path("percell/*.bam"), emit: percell_bams
 
     script:
-    // Split into one BAM per cell barcode. If a called-barcodes file is given
-    // (not NO_FILE), restrict to those barcodes (first column) -- essential
-    // when splitting the sample BAM, which otherwise contains thousands of
-    // background/empty-droplet barcodes. Otherwise derive all CB from the BAM.
+    // Restrict to the called barcodes when given: the sample BAM holds many
+    // background barcodes.
     """
     #!/bin/bash
     set -euo pipefail
