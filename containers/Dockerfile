@@ -5,6 +5,7 @@
 #   /opt/conda/envs/cellsnp       Cellsnp-lite 1.2.3 (htslib 1.24)
 #   /opt/conda/envs/gt_pileup     samtools 1.20 + bedtools 2.31.0 (ground-truth pileups in analysis/)
 #   /opt/conda/envs/refbuild      BEDOPS + bedtools 2.31.0 (extended annotations in references/)
+#   /opt/conda/envs/cutadapt      cutadapt 4.9 + pigz (Smart-seq2 TSO trimming, CUTADAPT_TSO)
 # Build from the repository root:
 #   docker build -f containers/Dockerfile -t scrnaediting .
 FROM mambaorg/micromamba:2.9.0-debian12-slim@sha256:d8f7ba87cb33f3c35f311748fac5a2c6d28caf807a7507a32dd0cfe1fba13309
@@ -22,6 +23,7 @@ RUN micromamba create -y -p /opt/conda/envs/scRNAEditing -f /tmp/envs/scRNAEditi
  && micromamba create -y -p /opt/conda/envs/cellsnp -f /tmp/envs/cellsnp.linux-64.lock.txt \
  && micromamba create -y -p /opt/conda/envs/gt_pileup -f /tmp/envs/gt_pileup.linux-64.lock.txt \
  && micromamba create -y -p /opt/conda/envs/refbuild -f /tmp/envs/refbuild.linux-64.lock.txt \
+ && micromamba create -y -p /opt/conda/envs/cutadapt -f /tmp/envs/cutadapt.linux-64.lock.txt \
  && micromamba clean -a -y
 
 RUN /opt/conda/envs/scAllele/bin/pip install --no-deps --no-cache-dir -r /tmp/envs/scAllele.pip.txt \
@@ -31,11 +33,14 @@ RUN PATH=/opt/conda/envs/scRNAEditing/bin:$PATH \
     Rscript /tmp/envs/install_r_packages.R /tmp/envs/scRNAEditing.r_packages.tsv \
  && rm -rf /tmp/envs /tmp/Rtmp*
 
-# scAllele and Cellsnp-lite run from their own environments through absolute
-# shebangs, so they can sit on PATH next to the main environment.
+# scAllele, Cellsnp-lite and cutadapt run from their own environments through
+# absolute shebangs, so they can sit on PATH next to the main environment.
+# pigz (absent from the main environment) is cutadapt's gzip writer.
 RUN ln -s /opt/conda/envs/scAllele/bin/scAllele       /usr/local/bin/scAllele \
  && ln -s /opt/conda/envs/scAllele/bin/scAllele_train /usr/local/bin/scAllele_train \
- && ln -s /opt/conda/envs/cellsnp/bin/cellsnp-lite    /usr/local/bin/cellsnp-lite
+ && ln -s /opt/conda/envs/cellsnp/bin/cellsnp-lite    /usr/local/bin/cellsnp-lite \
+ && ln -s /opt/conda/envs/cutadapt/bin/cutadapt       /usr/local/bin/cutadapt \
+ && ln -s /opt/conda/envs/cutadapt/bin/pigz           /usr/local/bin/pigz
 
 # What `conda activate scRNAEditing` would set; the JACUSA2 step finds its jar
 # through CONDA_PREFIX.

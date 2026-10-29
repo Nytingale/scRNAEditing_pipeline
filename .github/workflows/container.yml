@@ -66,6 +66,8 @@ jobs:
             python -m reditools analyze --help >/dev/null
             scAllele --help >/dev/null
             cellsnp-lite --version
+            cutadapt --version
+            pigz --version
             umi_tools --version
             sinto --version
             /opt/conda/envs/gt_pileup/bin/samtools --version | head -1

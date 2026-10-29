@@ -24,13 +24,14 @@ This pipeline runs variant callers (BCFtools, REDItools3, GATK HaplotypeCaller, 
 
 ## Installation
 
-All software the pipeline runs is in one container image, `ghcr.io/nytingale/scrnaediting:1.0.0`. It holds the three conda environments used for the benchmark, rebuilt from the exact lock files in `envs/`:
+All software the pipeline runs is in one container image, `ghcr.io/nytingale/scrnaediting:1.0.0`. It holds the four conda environments the pipeline uses, rebuilt from the exact lock files in `envs/`:
 
 | Environment | Contents | Why separate |
 |---|---|---|
 | `scRNAEditing` | Nextflow, samtools, BCFtools, GATK, JACUSA2, REDItools3, STAR, umi_tools, sinto, RSeQC, R and all R packages | main environment |
 | `scAllele` | scAllele 0.0.9.7 | needs numpy 1.26 / scipy 1.15; the main environment has numpy 2 |
 | `cellsnp` | Cellsnp-lite 1.2.3 | built against htslib 1.24; the main environment's samtools uses htslib 1.23.1 |
+| `cutadapt` | cutadapt 4.9, pigz | Smart-seq2 TSO trimming (`--tso_clip`, `--remap`); needs Python 3.12, the main environment has 3.11 |
 
 Use the container (Singularity / Apptainer on HPC clusters, or Docker) unless you cannot; the conda route below reproduces the same environments on linux-64.
 
@@ -86,7 +87,7 @@ Tasks run as your user (`-u $(id -u):$(id -g)`), so outputs are not owned by roo
 
 ### 2c. Conda (no containers)
 
-Create the three environments from the lock files. The lock files list every package by exact build and URL, so no solving takes place; they are for linux-64 only. `envs/*.yml` list the same versions without build strings for other platforms, but are not guaranteed to solve identically.
+Create the environments from the lock files. The lock files list every package by exact build and URL, so no solving takes place; they are for linux-64 only. `envs/*.yml` list the same versions without build strings for other platforms, but are not guaranteed to solve identically.
 
 ```bash
 # main environment, then the R packages that were installed from CRAN / GitHub after conda
@@ -99,11 +100,14 @@ mamba run -n scAllele pip install --no-deps -r envs/scAllele.pip.txt
 
 # Cellsnp-lite
 mamba create -n cellsnp --file envs/cellsnp.linux-64.lock.txt
+
+# cutadapt (Smart-seq2 TSO trimming with --remap)
+mamba create -n cutadapt --file envs/cutadapt.linux-64.lock.txt
 ```
 
 `install_r_packages.R` installs 15 packages at the versions used (`envs/scRNAEditing.r_packages.tsv`, e.g. Seurat 5.5.1, data.table 1.18.6.1, DoubletFinder from a fixed GitHub commit) and stops if any version differs. It compiles from source with the compilers in the environment, which took about 6 minutes in our test.
 
-Then point the pipeline at the three environments:
+Then point the pipeline at the environments:
 
 ```bash
 CONDA_BASE=$(conda info --base)
@@ -111,6 +115,7 @@ nextflow run main.nf -profile conda,slurm \
     --conda_env      "$CONDA_BASE/envs/scRNAEditing" \
     --scallele_conda "$CONDA_BASE/envs/scAllele" \
     --cellsnp_bin    "$CONDA_BASE/envs/cellsnp/bin/cellsnp-lite" \
+    --cutadapt_conda "$CONDA_BASE/envs/cutadapt" \
     --input samplesheet.csv ...
 ```
 
@@ -263,7 +268,7 @@ This masking is optional and may not be needed with newer tool versions. If in d
 | `--tso_seq` | `AAGCAGTGGTATCAACGCAGAGTACATGGG` | TSO sequence for the Smart-seq2 trim (10x and Smart-seq2 share it) |
 | `--tso_min_overlap` | 5 | Shortest TSO 3' end (`ATGGG`) trimmed at a read start (Smart-seq2) |
 | `--tso_min_length` | 20 | Smart-seq2: drop read pairs with a mate shorter than this after trimming |
-| `--cutadapt_conda` | `envs/cutadapt.yml` | Conda env (file or existing prefix) for `CUTADAPT_TSO` |
+| `--cutadapt_conda` | `envs/cutadapt.yml` | conda profile only: cutadapt environment (prefix or file) for `CUTADAPT_TSO`; ignored with containers |
 | `--star_index` | null | Pre-built STAR genome index directory (built automatically if not provided) |
 | `--bam_types` | sample,sampleRmDup,sampleUmiDup,<br>recal,recalq20,<br>goodCells,goodCellsRmDup,goodCellsUmiDup,<br>annotated,annotatedRmDup,annotatedUmiDup,<br>celltype,celltypeRmDup,celltypeUmiDup | Comma-separated list of BAM types; only requested types are built |
 | `--dedup` | `none,coordinate` | Comma-separated dedup strategies: `none`, `coordinate` (GATK MarkDuplicates), `umi` (umi_tools). RmDup types need `coordinate`, UmiDup types need `umi` |
