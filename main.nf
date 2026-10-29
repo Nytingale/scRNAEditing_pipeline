@@ -22,6 +22,11 @@ params.repeat_annots   = null    // Repeat annotations for AEI
 params.refseq_bed      = null    // RefSeq BED for strandedness inference
 params.main_chroms     = null    // One chromosome per line (null = all from BAM header)
 params.remap           = false   // Re-align with STARsolo
+params.tso_clip        = true    // --remap: 10x 3' -> STAR --clipAdapterType CellRanger4 (5' TSO + 3' poly(A)); smartseq2 -> cutadapt 5' TSO trim on both mates
+params.tso_seq         = 'AAGCAGTGGTATCAACGCAGAGTACATGGG'
+params.tso_min_overlap = 5       // shortest TSO 3' end (ATGGG) trimmed at a read start
+params.tso_min_length  = 20      // drop pairs with a mate shorter than this after trimming
+params.cutadapt_conda  = "${projectDir}/envs/cutadapt.yml"  // or an existing env prefix
 params.dedup           = 'none,coordinate'  // Any of: none, coordinate, umi
 params.dedup_cell_tag  = 'CR'          // 'CR' (raw, recommended) or 'CB' (corrected)
 params.callers         = 'bcftools,reditools3,gatk,jacusa2'  // also: scallele, cellsnp
@@ -88,6 +93,7 @@ include { VALIDATE_BAMS        } from './modules/bam_validate'
 include { VALIDATE_FASTQ_READS } from './modules/fastq_validate'
 include { STARSOLO_ALIGN       } from './modules/starsolo'
 include { STAR_GENOMEGENERATE  } from './modules/starsolo'
+include { CUTADAPT_TSO         } from './modules/tso_trim'
 include { ADD_MD_TAG           } from './modules/bam_validate'
 include { FILTER_UNIQUELY_MAPPED } from './modules/bam_validate'
 include { MERGE_BAMS           } from './modules/bam_merge'
@@ -304,8 +310,15 @@ workflow {
                 by: 0
             )
             .map { lid, meta, bc_fq, cdna_fq, annot -> [ meta, annot, bc_fq, cdna_fq ] }
+            .branch { meta, annot, r1, r2 ->
+                tso_trim: meta.platform == 'smartseq2' && toBool(params.tso_clip)
+                other: true
+            }
 
-        STARSOLO_ALIGN(ch_validated, ch_star_index, genome_fasta, genome_gtf)
+        CUTADAPT_TSO(ch_validated.tso_trim)
+        ch_align_in = ch_validated.other.mix(CUTADAPT_TSO.out.reads)
+
+        STARSOLO_ALIGN(ch_align_in, ch_star_index, genome_fasta, genome_gtf)
         ch_lane_bams = STARSOLO_ALIGN.out.bam
             .map { meta, bam, bai -> [ meta.lane_id, meta, bam, bai ] }
             .combine(

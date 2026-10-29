@@ -101,6 +101,12 @@ calls = rbindlist(lapply(seq_len(nrow(files)), function(i) {
   x[, `:=`(unit = files$unit[i], config = files$config[i])]
 }))
 stopifnot(all(calls$strand %in% c("+", "-")), all(nchar(calls$varType) == 2L))
+# GT_DROP_SITES: file with a `site` column; calls there are removed before scoring (emulates a post-call site filter)
+if (nzchar(Sys.getenv("GT_DROP_SITES"))) {
+  drop = fread(Sys.getenv("GT_DROP_SITES"), select = "site")$site
+  msg("GT_DROP_SITES: removing calls at ", length(drop), " sites (", sum(calls$site %chin% drop), " calls)")
+  calls = calls[!site %chin% drop]
+}
 calls[, genomic_sub := fifelse(strand == "+", varType,
                                paste0(COMP[substr(varType, 1, 1)], COMP[substr(varType, 2, 2)]))]
 calls[, correct := (genomic_sub == "AG" & strand == "+") | (genomic_sub == "TC" & strand == "-")]

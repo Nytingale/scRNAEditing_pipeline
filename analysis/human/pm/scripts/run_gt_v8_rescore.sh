@@ -9,6 +9,7 @@
 #   tasks 17-19  KO truth with the region mask (gt_eval_v7 variant v7_mask_nomm_pgp1, a subset of the v8 positions),
 #                mismatch state x tier -> gt_eval_v8/mask_compare/mismatch/<tier>/ (GTDEF_v8_mask_vs_nomm_plot.R panel d)
 #   qsub -t 1-19 human/pm/scripts/run_gt_v8_rescore.sh
+#   -v KO_TRUTH=<truth tsv.gz> (tasks 1-12; default gt_eval_v8/truth), GT_DROP_SITES=<tsv with site> (gt_score_v7.R)
 # Then: gt_rank_v7.R per state and gt_v8_compare.R.
 #$ -S /bin/bash
 #$ -N gt_v8_rescore
@@ -56,7 +57,7 @@ elif [ $i -lt 12 ]; then
     both)      res=$PM/${PUB[$tier]};      re='_pre100\.tsv\.gz$' ;;
   esac
   echo "KO state=$state tier=$tier res=$res"
-  GT_V7_TRUTH=$V8/truth/gt_v7_truth_sites.tsv.gz GT_UNIT_COV=$V8/unit_cov/ko_truth_unit_cov.tsv.gz \
+  GT_V7_TRUTH=${KO_TRUTH:-$V8/truth/gt_v7_truth_sites.tsv.gz} GT_UNIT_COV=$V8/unit_cov/ko_truth_unit_cov.tsv.gz \
     $RS human/scripts/gt_score_v7.R "$tier" "$res" "$SC/$state/$tier" "$re"
 else
   state=${STATES[$(( i - 12 ))]}

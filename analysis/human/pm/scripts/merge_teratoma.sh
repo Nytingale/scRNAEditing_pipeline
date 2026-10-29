@@ -19,7 +19,7 @@ if [ ! -x "$SAMTOOLS" ]; then
 fi
 echo "Using $($SAMTOOLS --version | head -1) [$SAMTOOLS]"
 
-BAMDIR="${SCRNA_DIR:-.}/human/pm/01_starsolobams"
+BAMDIR="${BAMDIR:-${SCRNA_DIR:-.}/human/pm/01_starsolobams}"
 cd "$BAMDIR"
 
 declare -A TERATOMA_SRRS

@@ -25,8 +25,11 @@ fi
 
 REFDIR="${SCRNA_DIR:-.}/human/ref_annots"
 FQDIR="${SCRNA_DIR:-.}/human/pm/fastq_files"
-OUTDIR="${SCRNA_DIR:-.}/human/pm/01_starsolobams"
+OUTDIR="${OUTDIR:-${SCRNA_DIR:-.}/human/pm/01_starsolobams}"
 STARDB="${REFDIR}/stardb_hg38_100"
+# TSO_CLIP=1: 5' TSO + 3' poly(A) clipping before alignment, as Cell Ranger >= 4 (review/TSO_rerun_rationale_2026-10-29.md)
+CLIP_ARGS=()
+[ "${TSO_CLIP:-0}" = "1" ] && CLIP_ARGS=(--clipAdapterType CellRanger4)
 WHITELIST="${SCRNA_DIR:-.}/nextflow/assets/whitelists/3M-february-2018.txt"
 NTHREADS=${NTHREADS:-8}
 
@@ -56,6 +59,7 @@ STAR \
     --soloCBwhitelist "$WHITELIST" \
     --readFilesIn "$R2" "$R1" \
     --readFilesCommand zcat \
+    ${CLIP_ARGS[@]+"${CLIP_ARGS[@]}"} \
     --soloFeatures GeneFull SJ \
     --twopassMode Basic \
     --outFilterMultimapNmax 1 \

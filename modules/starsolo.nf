@@ -6,6 +6,8 @@ def getStarsoloParams(platform) {
     def settings = [:]
     settings.soloType = 'CB_UMI_Simple'
     settings.complex  = false
+    // 10x 3' TSO; other template-switching platforms use other TSO sequences or paired-end cDNA reads.
+    settings.tsoClip  = platform in ['10xv2', '10xv3']
 
     if (platform == '10xv2') {
         settings.soloCBstart = 1
@@ -185,6 +187,8 @@ process STARSOLO_ALIGN {
             "--soloCBwhitelist None"
 
         def expected_len = settings.soloCBlen + settings.soloUMIlen
+        def clip_flag = (settings.tsoClip && params.tso_clip.toString() != 'false') ?
+            "--clipAdapterType CellRanger4" : ""
 
         """
         #!/bin/bash
@@ -215,6 +219,7 @@ process STARSOLO_ALIGN {
             --soloUMIlen ${settings.soloUMIlen} \\
             --soloBarcodeReadLength 0 \\
             ${whitelist_flag} \\
+            ${clip_flag} \\
             --soloFeatures GeneFull SJ \\
             --twopassMode Basic \\
             --outFilterMultimapNmax 1 \\

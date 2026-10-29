@@ -47,6 +47,9 @@ case "$TIER" in
   splitB)   SHEET="$DATADIR/gt_eval_v8/split_cells/samplesheet_split_B.csv";    NAME=gt_split_B_v8 ;;
   *) echo "ERROR: unknown TIER '$TIER'" >&2; exit 1 ;;
 esac
+# TSO-clipped rerun (2026-10-29): TIER=sample with SHEET=samplesheet_pm_gt_persample.csv (no prebuilt dedup columns), so the
+# pipeline deduplicates per teratoma and publishes <sample>/02_dedup, the input of merge_gt_{rmdup,umi}_bams_v6.sh.
+SHEET=${SHEET_OVERRIDE:-$SHEET}
 OUTDIR="$DATADIR/results_$NAME"
 WORK="$DATADIR/work_$NAME"
 RUNDIR="$DATADIR/nf_run_$NAME"

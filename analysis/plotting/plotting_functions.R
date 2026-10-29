@@ -200,6 +200,20 @@ cmap_3prime_sites <- c("Sites with \u2265 10 reads" = "#009E73", "Edited sites" 
 
 # Ground truth site classes
 cmap_truth_class <- c("Positive" = "#0072B2", "Informative negative" = "#D55E00")
+# Aorta truth sites split by which caller calls the informative negatives
+cmap_negcheck_group <- c("Positive" = "#0072B2", "Negative: called by scAllele" = "#D55E00",
+                         "Negative: called by BCFtools only" = "#E69F00",
+                         "Negative: called by neither" = "#CC79A7")
+# KO ground-truth datasets compared across species
+cmap_gt_dataset_pair <- c("Teratoma (human)" = "#0072B2", "Aorta (mouse)" = "#E69F00")
+# Aorta informative negatives by sequence context (caller-free rule, aorta_truth_adarlike.R)
+cmap_neg_context <- c("ADAR-like context" = "#CC79A7", "Other context" = "#999999")
+# Truth sites split by the 10x TSO-artifact label (AORTA_tso_evidence_source_data.R)
+cmap_tso_class <- c("Positive, TSO-like" = "#56B4E9", "Positive, other" = "#0072B2",
+                    "Negative, TSO-like" = "#E69F00", "Negative, other" = "#8C510A",
+                    "Unresolved, TSO-like" = "#CC79A7", "Unresolved, other" = "#999999")
+cmap_base <- c(A = "#0072B2", C = "#E69F00", G = "#CC79A7", T = "#999999")
+cmap_arm_ko <- c(Control = "#0072B2", KO = "#E69F00")
 
 # ── Mismatch types ──────────────────────────────────────────────────────────
 cmap_varType <- c(
@@ -960,11 +974,10 @@ jitter_points <- function(orientation = c("vertical", "horizontal"),
                           seed = manuscript_seed, width = 0.2, height = 0.2,
                           ...) {
   orientation <- match.arg(orientation)
-  if (orientation == "vertical") {
-    geom_jitter(width = width, height = 0, seed = seed, ...)
-  } else {
-    geom_jitter(width = 0, height = height, seed = seed, ...)
-  }
+  # geom_jitter() has no seed argument (silently ignored); the seed must go through position_jitter().
+  pos <- if (orientation == "vertical") position_jitter(width = width, height = 0, seed = seed)
+         else position_jitter(width = 0, height = height, seed = seed)
+  geom_point(position = pos, ...)
 }
 
 # Transparent fill, black outlines; hide outlier *glyphs* only

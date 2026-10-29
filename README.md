@@ -259,6 +259,11 @@ This masking is optional and may not be needed with newer tool versions. If in d
 | Parameter | Default | Description |
 |---|---|---|
 | `--remap` | false | Re-align from FASTQs with STARsolo |
+| `--tso_clip` | true | With `--remap`, remove the template-switch oligo (TSO) before alignment. 10xv2 / 10xv3: STAR `--clipAdapterType CellRanger4` (5' TSO and 3' poly(A), as Cell Ranger >= 4). smartseq2: cutadapt trims the TSO from the 5' end of both mates (`CUTADAPT_TSO`; STAR's CellRanger4 mode clips mate 1 only). Without it, the TSO's final GGG aligns onto genomic G-A-G and creates A-to-G artifacts |
+| `--tso_seq` | `AAGCAGTGGTATCAACGCAGAGTACATGGG` | TSO sequence for the Smart-seq2 trim (10x and Smart-seq2 share it) |
+| `--tso_min_overlap` | 5 | Shortest TSO 3' end (`ATGGG`) trimmed at a read start (Smart-seq2) |
+| `--tso_min_length` | 20 | Smart-seq2: drop read pairs with a mate shorter than this after trimming |
+| `--cutadapt_conda` | `envs/cutadapt.yml` | Conda env (file or existing prefix) for `CUTADAPT_TSO` |
 | `--star_index` | null | Pre-built STAR genome index directory (built automatically if not provided) |
 | `--bam_types` | sample,sampleRmDup,sampleUmiDup,<br>recal,recalq20,<br>goodCells,goodCellsRmDup,goodCellsUmiDup,<br>annotated,annotatedRmDup,annotatedUmiDup,<br>celltype,celltypeRmDup,celltypeUmiDup | Comma-separated list of BAM types; only requested types are built |
 | `--dedup` | `none,coordinate` | Comma-separated dedup strategies: `none`, `coordinate` (GATK MarkDuplicates), `umi` (umi_tools). RmDup types need `coordinate`, UmiDup types need `umi` |

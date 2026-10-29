@@ -42,7 +42,7 @@ reads() { samtools idxstats "$1" | awk '{s += $3 + $4} END {print s}'; }
 
 IN=(); SUM=0
 for T in T1 T2 T3 T4; do
-  b=$(readlink -f "$BASE/results_gt_persample/${T}_${ARM}/02_dedup/${T}_${ARM}_rmDup.bam")
+  b=$(readlink -f "${PERSAMPLE_DIR:-$BASE/results_gt_persample}/${T}_${ARM}/02_dedup/${T}_${ARM}_rmDup.bam")
   [ -s "$b" ] && [ -s "${b}.bai" ] || { echo "ERROR: missing $b(.bai)" >&2; exit 1; }
   ln -sfn "$b" "$OUT/${T}_${ARM}.bam"
   ln -sfn "${b}.bai" "$OUT/${T}_${ARM}.bam.bai"
