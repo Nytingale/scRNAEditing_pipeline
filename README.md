@@ -549,4 +549,4 @@ The complete package lists are `envs/*.linux-64.lock.txt`, `envs/scAllele.pip.tx
 
 ## Differential editing (separate)
 
-Differential editing analysis (REDIT-LLR, Wilcoxon and limma-based tests with a union consensus) is not part of this pipeline; the scripts and a demonstration are in the code archive of the original study, [doi:10.5281/zenodo.19402220](https://doi.org/10.5281/zenodo.19402220).
+Differential editing analysis is not part of this pipeline. It will be provided as a separate Nextflow pipeline, together with its simulation benchmark, in this repository.
