@@ -1,5 +1,5 @@
 #!/bin/bash
-# umi_seed_bams.sh STAGE=dedup|merge   (user 2026-11-11)
+# umi_seed_bams.sh STAGE=dedup|merge
 # Teratoma umi_tools BAMs rebuilt with a fixed seed (--random-seed=8787), replacing 02_gt_bams_umi_v6 (unseeded:
 # random_seed None in every umi_tools log, so those BAMs cannot be reproduced). Same steps as the pipeline's
 # UMI_DEDUP_CHROM + UMI_DEDUP_GATHER (nextflow/modules/dedup.nf) on the TSO-clipped per-teratoma BAMs
@@ -26,7 +26,7 @@ export PATH=${CONDA_ENVS:-/opt/conda/envs}/scRNAEditing/bin:/usr/local/bin:/usr/
 B=${SCRNA_DIR:-.}
 PM=$B/human/pm
 SEED=${SEED:-8787}
-# seed replicates (user 2026-11-11): SEED=<n> writes umi_seed_reps/seed<n>/bams; submit only the needed array tasks
+# seed replicates: SEED=<n> writes umi_seed_reps/seed<n>/bams; submit only the needed array tasks
 O=$PM/02_gt_bams_umi_seed8787; [ "$SEED" = 8787 ] || O=$PM/umi_seed_reps/seed$SEED/bams
 MAIN=$B/human/ref_annots/chrlist_main_chrs.txt
 STAGE=${STAGE:?STAGE=dedup|merge}

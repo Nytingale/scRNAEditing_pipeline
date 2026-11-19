@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # ============================================================================
-# TERATOMA_overall_vs_ag_plot.R   (HANDOFF 2026-09-29 UPDATE-27)
+# TERATOMA_overall_vs_ag_plot.R
 # A-to-G percentage (truth-free) as a proxy for performance: cross-tier summaries of each reported
 # configuration (full benchmark call set) against its A-to-G percentage, one panel per truth set.
 #   mean F1      = mean of the three tier F1 values (tier F1 from unit-averaged precision and recall)

@@ -2,18 +2,18 @@
 # ============================================================================
 # GTDEF_v8_m_null_check_plot.R   (2026-10-18)
 #
-# Review response, Set A of HANDOFF_2026-10-17 4c-DECISION (m = 3 kept as an eligibility gate). Source data
+# Review response, Set A (m = 3 kept as an eligibility gate). Source data
 # for Figure 2 e-f (GTDEF_gtdefinition_plot.R, GTDEF_v8_informative_ko) and a standalone copy of those panels.
 #   e  share of KO arms with 0 edited (alt) reads, binned by m = KO coverage x NTC allele fraction (bins
 #      [k - 0.5, k + 0.5), plotted at k = 1..8), against e^-m: non-AG/TC sites (cannot respond to an ADAR KO) = the 10
 #      mismatch types that are neither A>G nor T>C (RNA orientation); and A-to-G candidate sites (RNA A>G, both
 #      genomic strands; chance zeros + KO effect). PGP1 SNV positions are removed from both. One row per site and KO (ADAR1 KO, ADAR2 KO) with KO
 #      coverage >= 1).
-#      Plotted (user 2026-10-18): binomial GAM of zero ~ s(m) per group and KO on the sites (0 < m <= 8.5;
+#      Plotted: binomial GAM of zero ~ s(m) per group and KO on the sites (0 < m <= 8.5;
 #      each KO separately, so every site is counted once per fit),
 #      fit and 95% band -> GTDEF_v8_m_null_fit.tsv. The binned table (GTDEF_v8_m_null_zero.tsv) is kept for
 #      the counts quoted in the text.
-#   (not plotted; user 2026-10-18: quote only if asked) share of A-to-G zero-read KO arms beyond chance
+#   (not plotted; quote only if asked) share of A-to-G zero-read KO arms beyond chance
 #      = 1 - non-AG/TC rate / A-to-G rate per m bin; 95% interval from 2,000 binomial draws of both rates; bins with
 #      >= 10 A-to-G zero-read arms -> GTDEF_v8_m_null_excess.tsv
 # Site universe: the v8 rules with the gate relaxed to NTC coverage >= 10 and KO coverage >= 1

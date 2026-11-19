@@ -28,7 +28,7 @@ New figures follow the same pattern:
 2. In `<name>_plot.R`, source the group's `*_plot_common.R`, read each table with `read_part(STEM, part)`, keep the plotting code free of computation beyond layout, and save with `save_figure_sd(plot, STEM, width, height, parts)`. The `.sources.tsv` sidecar then lists the source data tables the figure was drawn from.
 3. Add both scripts to `REPO_MANIFEST.tsv` (`source_data` and `plot`) and the source data tables to `ZENODO_FILES.tsv`.
 
-Schematic figures with no data (response figure 14) have a plot script only.
+Response figure 18 is a schematic taken from the original manuscript and has no script.
 
 ## Regenerating the figures
 
@@ -52,24 +52,28 @@ Figures are written to `publication/<analysis>/figures/`. The table gives the pl
 | Response figure | Plot script (`publication/...`) |
 |---|---|
 | 1 Coverage gates for the ground truth | `gt_definition/scripts/GTDEF_v8_informative_ko_plot.R` |
-| 2 Pileup quality, site universe, truth sites per cell type | `gt_definition/scripts/GTDEF_v8_universe_celltype_robustness_plot.R` |
+| 2 Pileup quality, dbSNP filtering, truth sites per cell type, threshold sensitivity | `gt_definition/scripts/GTDEF_v8_universe_celltype_robustness_plot.R` |
 | 3 NTC editing levels of informative negatives | `teratoma_gt/scripts/TERATOMA_v8_negatives_plot.R` |
-| 4 Ranks under the nine ground truths | `teratoma_gt/scripts/TERATOMA_v8_rank_robustness_plot.R` |
-| 5 Ranks within each truth family | `teratoma_gt/scripts/TERATOMA_v8_rank_robustness_plot.R` |
-| 6 Ranking sensitivity to the downstream filters | `teratoma_gt/scripts/TERATOMA_v8_filter_sweep2_rank_rho_plot.R` |
-| 7 Rank with and without removal of sites near other mismatch types | `teratoma_gt/scripts/TERATOMA_v8_window_state_rank_scatter_plot.R` |
-| 8 Local context filters on candidate sites | `gt_definition/scripts/GTDEF_v8_nomm_cluster_retention_plot.R` |
-| 9 Truth-free measures | `teratoma_gt/scripts/TERATOMA_v8_metric_case_plot.R` |
-| 10 F1 differences between paired configurations | `teratoma_gt/scripts/TERATOMA_v8_config_factor_plot.R` |
-| 11 Editing levels, UMI-aware vs coordinate deduplication | `gt_definition/scripts/GTDEF_hex_dedup_coord_vs_umi_plot.R` |
-| 12 Run time, memory and storage per caller | `teratoma_gt/scripts/TERATOMA_v8_caller_resources_plot.R` |
-| 13 Ground-truth sites near splice junctions and indels | `gt_definition/scripts/GTDEF_v8_sj_indel_plot.R` |
-| 14 Removal of sites near other mismatch types (schematic) | none; taken from Figure 1e of the original manuscript |
-| 15 Reference bias correction (WASP) | `wasp_refbias/scripts/WASP_refbias_platforms_plot.R` |
-| 16 Full-length vs 3' sites by distance to the 3' end; sites shared between platforms | `three_prime_bias/scripts/DING_3prime_bias_v5_plot.R` |
-| 17 JACUSA2 replicate-aware calling | `teratoma_gt/scripts/TERATOMA_v8_replicates_plot.R`, `TERATOMA_v8_replicates_arm_rank_plot.R` |
-| 18 Linkage of KO-based sites to SNPs in single cells | `teratoma_gt/scripts/TERATOMA_v8_linkage_snp_plot.R` |
-| 19 DepMap CRISPR KO in lung cell lines | `lungTME/scripts/LUNGTME_depmap_exADAR_plot.R` |
+| 4 Read-oriented T-to-C mismatches as antisense A-to-I edits | `gt_definition/scripts/GTDEF_agtc_v9_plot.R` |
+| 5 Mismatch spectra of KO-depleted sites, teratoma and aorta | `gt_definition/scripts/GTDEF_truth_spectrum12_plot.R` |
+| 6 Ranks under the nine teratoma ground truths | `teratoma_gt/scripts/TERATOMA_v8_rank_robustness_plot.R` |
+| 7 Ranks within each truth family | `teratoma_gt/scripts/TERATOMA_v8_rank_robustness_plot.R` |
+| 8 Margin of the winning configuration over the best other caller | `teratoma_gt/scripts/TERATOMA_v8_caller_margin_plot.R` |
+| 9 Ranking sensitivity to the post-calling filters | `teratoma_gt/scripts/TERATOMA_v8_filter_sweep2_rank_rho_plot.R` |
+| 10 Ranks with and without the discordant-mismatch filter | `teratoma_gt/scripts/TERATOMA_v8_window_state_rank_scatter_plot.R` |
+| 11 Local mismatch filters on candidate sites | `gt_definition/scripts/GTDEF_v8_nomm_cluster_retention_plot.R` |
+| 12 Ranks on the held-out mouse aorta and agreement with the teratoma | `aorta_gt/scripts/AORTA_v9_ko_rank_plot.R` |
+| 13 Truth-free measures against KO-based accuracy | `teratoma_gt/scripts/TRUTHFREE_v10_harmonic_scatter.R` (computes and draws in one script) |
+| 14 F1 differences between paired configurations | `teratoma_gt/scripts/TERATOMA_v8_config_factor_plot.R` |
+| 15 Editing-level concordance between deduplication methods | `gt_definition/scripts/GTDEF_dedup_editlevel_pearson_plot.R` |
+| 16 Run time, memory and storage per caller | `teratoma_gt/scripts/TERATOMA_v8_caller_resources_plot.R` |
+| 17 Ground-truth sites near splice junctions and indels | `gt_definition/scripts/GTDEF_v8_sj_indel_plot.R` |
+| 18 The two local mismatch filters (schematic) | none; taken from Figure 1e of the original manuscript |
+| 19 Reference bias correction (WASP) | `wasp_refbias/scripts/WASP_refbias_platforms_plot.R` |
+| 20 Full-length vs 3' sites by distance to the 3' end; sites shared between platforms | `three_prime_bias/scripts/DING_3prime_bias_v5_plot.R` |
+| 21 JACUSA2 replicate-aware calling | `teratoma_gt/scripts/TERATOMA_v8_replicates_plot.R`, `TERATOMA_v8_replicates_arm_rank_plot.R` |
+| 22 Linkage of KO-based sites to SNPs in single cells | `teratoma_gt/scripts/TERATOMA_v8_linkage_snp_plot.R` |
+| 23 DepMap CRISPR KO in lung cell lines | `lungTME/scripts/LUNGTME_depmap_exADAR_plot.R` |
 
 The other figures of these analyses follow the same pattern:
 

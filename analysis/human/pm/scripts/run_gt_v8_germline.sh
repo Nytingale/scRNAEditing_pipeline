@@ -1,6 +1,6 @@
 #!/bin/bash
 # run_gt_v8_germline.sh  [submit|setup|collect|score]   (2026-10-13)
-# Germline false-positive rate (user 2026-10-13): unit coverage at the germline sites (gt_v8_germline_sites.R)
+# Germline false-positive rate: unit coverage at the germline sites (gt_v8_germline_sites.R)
 # in the 28 NTC unit BAMs (gt_v8_unit_cov.sh, OUT = gt_eval_v8/germline/unit_cov), then
 # gt_score_germline_v8.R per tier on the mismatch state (task 1-3 = arm, sample, celltype).
 #   HOLD=<gl_sites job> bash run_gt_v8_germline.sh submit

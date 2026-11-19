@@ -2,7 +2,7 @@
 # ============================================================================
 # TERATOMA_mismatch_composition_plot.R
 # Mismatch-type composition of every reported configuration's NTC call set in the three
-# local-mismatch-context states (HANDOFF 2026-09-29 UPDATE-24). Mismatch types are after
+# local-mismatch-context states. Mismatch types are after
 # stranding; counts are unique sites, pooled over the units of a tier.
 #   none     = step 4, mismatch = step 5 (near other MM types excluded), both = step 6 (+ clustered)
 #

@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# molecule_filter_v8.R <tier>   (Reviewer 2, major 1; user 2026-10-22)
+# molecule_filter_v8.R <tier>   (Reviewer 2, major 1)
 # Main-analysis call sets (published <prefix>_step5_nomm.tsv.gz, NTC tasks of filter_sweep2/manifest.tsv) restricted
 # to sites whose genomic variant base is carried by >= MIN_MOL molecules (distinct cell barcode + UMI) in the
 # configuration's own BAM (molecule_counts_v8.py), as a sensitivity check of the >= 3 variant reads filter.

@@ -32,7 +32,7 @@
 #
 # >>> celltype IS DELIBERATELY EXCLUDED, unlike the old script. <<<
 # Two independent reasons:
-#  1. The merged-arm celltype split is the approach HANDOFF_2026-09-15_pm §5a
+#  1. The merged-arm celltype split is the earlier approach
 #     found to MISASSIGN READS: the merged BAM pools T1-T4 with raw CB tags and
 #     carries no @RG, and 10x barcodes recur across teratomas. It is superseded
 #     by the celltype-as-sample track (split per sample, prefix CB/CR, then

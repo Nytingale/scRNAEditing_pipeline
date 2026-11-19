@@ -3,7 +3,7 @@
 # run_pipeline_pm_gt_v8.sh  TIER=arm|sample|celltype|splitB  STAGE=run|collect   (2026-10-14)
 #
 # v8 caller runs: all four teratoma caller runs recomputed from scratch, so every caller comes from one
-# pipeline version and one conda env (user 2026-10-14). Replaces the v6 runs (results_gt_{v6,persample_v6,
+# pipeline version and one conda env. Replaces the v6 runs (results_gt_{v6,persample_v6,
 # celltype_v6}, results_gt_split_B), which are kept unchanged except their BCFtools outputs
 # (moved to human/pm/_superseded_bcftools_refN_2026-10-14/).
 # Why: BCFTOOLS_MPILEUP REF=N race (gt_eval_v8/README.md); a -resume of the v6 work dirs recomputes
@@ -50,8 +50,8 @@ esac
 # TSO-clipped rerun (2026-10-29): TIER=sample with SHEET=samplesheet_pm_gt_persample.csv (no prebuilt dedup columns), so the
 # pipeline deduplicates per teratoma and publishes <sample>/02_dedup, the input of merge_gt_{rmdup,umi}_bams_v6.sh.
 SHEET=${SHEET_OVERRIDE:-$SHEET}
-# UMIMD=1 (PI decision 2026-11-09): add UMI-aware MarkDuplicates (sampleUmiMd) to the arm / sample / celltype tiers,
-# NTC units only (the scored units; user 2026-11-09), from the prebuilt BAMs of umimd_bams.sh (umimd_bam column):
+# UMIMD=1: add UMI-aware MarkDuplicates (sampleUmiMd) to the arm / sample / celltype tiers,
+# NTC units only (the scored units), from the prebuilt BAMs of umimd_bams.sh (umimd_bam column):
 # samplesheet <sheet>_umimd_ntc.csv = the NTC rows + umimd_bam. Own outdir / work dir / launch dir (<name>_umimd):
 # a -resume of the v8 work dirs is not cached (CELLSNP_LITE and INFER_STRANDEDNESS changed since 2026-10-14; tried
 # 2026-11-09, stopped before any task finished). Scoring splices these call sets with the published ones.
@@ -59,7 +59,7 @@ DEDUP="none,coordinate,umi"; BAMTYPES="sample,sampleRmDup,sampleUmiDup,recal,rec
 if [ "${UMIMD:-0}" = 1 ]; then
   SHEET="${SHEET%.csv}_umimd_ntc.csv"; DEDUP="umimd"; BAMTYPES="sampleUmiMd"; NAME="${NAME}_umimd"
 fi
-# UMI=1 (v10, user 2026-11-12): umi_tools configurations only (sampleUmiDup) on the seed-8787 BAMs at the published
+# UMI=1 (v10): umi_tools configurations only (sampleUmiDup) on the seed-8787 BAMs at the published
 # paths (umidup_bam column), same units as the published run (celltype: the 23 NTC cell types of
 # samplesheet_pm_gt_celltype_v8_NTC.csv), into results_<name>_umi. STAGE=collect then runs STAGE=place: the
 # sampleUmiDup subtrees go into the published tree, Cellsnp-lite hybrid into gt_eval_v8/cellsnp_hybrid/results/centre/
@@ -70,7 +70,7 @@ if [ "${UMI:-0}" = 1 ]; then
   [ "$TIER" = celltype ] && SHEET="$DATADIR/samplesheet_pm_gt_celltype_v8_NTC.csv"
   DEDUP="umi"; BAMTYPES="sampleUmiDup"; NAME="${NAME}_umi"
 fi
-# CSNP=1 (user 2026-11-16: "Whatever is run should be what the pipeline would run for a user"): Cellsnp-lite alone,
+# CSNP=1: Cellsnp-lite alone,
 # same units, BAM types and settings (with UMIMD=1: the sampleUmiMd run), through the current CELLSNP_LITE module (both
 # passes; second pass at the reported sites only), for its run time, CPU and memory in response figure 16. Fresh
 # outdir / work dir / launch dir <name>_csnp; the published call sets are not touched.

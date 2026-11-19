@@ -1,6 +1,6 @@
 #!/bin/bash
 # recall_cov5_v8.sh   STAGE=manifest | submit | run (SGE array, M=<manifest subset>)   (2026-10-21)
-# Caller floors for the downstream-filter sweep (user 2026-10-21: coverage 5 / 10 / 15, variant reads 2 / 3 / 4,
+# Caller floors for the downstream-filter sweep (coverage 5 / 10 / 15, variant reads 2 / 3 / 4,
 # editing level 1 / 2 / 3%). GATK, JACUSA2, cellSNP-lite and scAllele apply min_cov 10 inside the caller task (GATK:
 # DP >= 10 when the VCF is tabulated; JACUSA2 -c; cellSNP-lite --minCOUNT; scAllele --DP), and scAllele also --AC 3,
 # so their published outputs cannot give the 5-read or the 2-variant-read setting. Every caller task feeding an NTC

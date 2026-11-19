@@ -1,5 +1,5 @@
 #!/bin/bash
-# pbmc_umimd.sh DS=jzlxv3|jzlcel STAGE=dedup|sheet|run|collect   (user 2026-11-09)
+# pbmc_umimd.sh DS=jzlxv3|jzlcel STAGE=dedup|sheet|run|collect
 # UMI-aware MarkDuplicates on the Ding PBMC UMI datasets (10x 3' v3, CEL-seq2), for the truth-free comparison with
 # umi_tools and coordinate dedup. Same read grouping as the published umi_tools BAMs (results_v8/<s>/02_dedup/*_umiDup.bam:
 # pipeline UMI_DEDUP_CHROM on results_v8/<s>/01_merged/<s>_merged.bam, --cell-tag CR, reads with UB:Z:- removed; one GEM

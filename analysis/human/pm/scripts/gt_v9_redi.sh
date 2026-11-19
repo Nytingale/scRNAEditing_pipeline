@@ -1,5 +1,5 @@
 #!/bin/bash
-# gt_v9_redi.sh STAGE=universe|ucov|score|splice|submit   (user 2026-11-07)
+# gt_v9_redi.sh STAGE=universe|ucov|score|splice|submit
 # REDIportal truths under the v9 rules (human/scripts/gt_score_rediportal_v9.R), state mismatch, 60 configurations,
 # pwcov settings -> human/pm/gt_eval_v9/rediportal_v9/
 #   universe  GT_REDI_PART=universe -> R/universe/; unit_cov setup at the reverse-orientation positives

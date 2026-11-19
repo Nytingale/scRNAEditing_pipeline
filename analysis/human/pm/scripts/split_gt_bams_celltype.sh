@@ -14,7 +14,7 @@
 # earlier bash re-implementation of the pooled cell counting is gone, so the
 # split can no longer drift from the recorded scope.
 #
-# STRATEGY (matches the original analysis; HANDOFF_2026-09-15 §6):
+# STRATEGY (matches the original analysis):
 #   split PER SAMPLE by cell type  ->  merge same cell type across samples
 # NOT the reverse. Splitting a merged BAM by barcode misassigns reads, because
 # the merged BAM pools samples with raw CB tags, carries no @RG, and 10x barcodes

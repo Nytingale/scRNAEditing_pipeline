@@ -21,16 +21,18 @@ levels(m$st) <- c("No local\nmismatch filters", "+ Discordant-\nmismatch filter"
                   "+ Both filters")[match(levels(m$st), c("No local\ncontext filters", "+ Remove if near\nother MM types",
                                                           "+ Clustered", "+ Remove if near\nother MM types\n+ Clustered"))]
 stopifnot(!anyNA(levels(m$st)))
-BS <- 13
+levels(m$cls)[2] <- "Other 10 mismatch types with\ndecreased mismatch rates in KO"
+BS <- 17
 GT_V9 <- Sys.getenv("GT_V9") == "1"   # v9 truth labels (A-to-I = A-to-G + T-to-C)
 
 pa <- ggplot(b, aes(clf, pct)) +
   geom_col(width = 0.5, fill = "#FDAE6B", colour = "grey20", linewidth = 0.2) +
   facet_grid(g ~ tl) +
   scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 25), expand = expansion(mult = c(0, 0.02))) +
-  labs(x = if (GT_V9) "Other A-to-G and T-to-C sites within the window (row label)" else "Other A-to-G sites within the window (row label)",
+  labs(x = "Number of sites with the same mismatch type kept",
        y = if (GT_V9) "KO-responsive A-to-G and\nT-to-C sites kept (%)" else "KO-responsive A-to-G sites kept (%)", tag = "a") +
-  theme_manuscript(base_size = BS, facets = TRUE) + grid_y
+  theme_manuscript(base_size = BS, facets = TRUE) + grid_y +
+  theme(panel.spacing.y = unit(2, "lines"))
 
 cmap_cls <- setNames(c(cmap_varType[["AG"]], cmap_varType[["AC"]]), levels(m$cls))
 pb <- ggplot(m, aes(st, pct, fill = cls)) +
@@ -40,10 +42,11 @@ pb <- ggplot(m, aes(st, pct, fill = cls)) +
   scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 25), expand = expansion(mult = c(0, 0.02))) +
   labs(x = NULL, y = "Sites kept (%)", tag = "b") +
   theme_manuscript(base_size = BS, facets = TRUE) + grid_y +
-  theme(legend.position = "bottom", legend.title = element_text(face = "bold"),
-        axis.text.x = element_text(angle = 35, hjust = 1, vjust = 1))
+  theme(legend.position = "bottom", legend.title = element_text(face = "bold"), panel.spacing.y = unit(2, "lines"),
+        legend.text = element_text(size = BS), legend.key.size = unit(1.4, "lines"),
+        axis.text.x = element_text(angle = 60, hjust = 1, vjust = 1, lineheight = 0.85))
 
 p <- (pb + labs(tag = "a")) / (pa + labs(tag = "b")) + plot_layout(heights = c(1.1, 1))
-save_figure_sd(p, STEM, width = 12, height = 15.5, parts = c("a_bins", "b_kept"), script = SCRIPT)
+save_figure_sd(p, STEM, width = 12, height = 14.5, parts = c("a_bins", "b_kept"), script = SCRIPT)
 ggsave(file.path(REPO_DIR, "review/response_figures_2026-10-15", paste0(STEM, ".png")), p,
-       width = 12, height = 15.5, dpi = 150)
+       width = 12, height = 14.5, dpi = 150)

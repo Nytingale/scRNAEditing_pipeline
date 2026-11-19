@@ -1,5 +1,5 @@
 #!/bin/bash
-# place_umi_calls.sh <umi-only outdir>   (v10, user 2026-11-12)
+# place_umi_calls.sh <umi-only outdir>   (v10)
 # Called by run_pipeline_pm_gt_v8.sh / run_pipeline_aorta_v8.sh STAGE=place (UMI=1). Copies every
 # <unit>/0{3_variants,4_filtered}/<caller>/sampleUmiDup subtree of a umi_tools-only run into the published tree
 # (PLACE_PUB), except Cellsnp-lite hybrid stranding, which goes to the Cellsnp-lite hybrid tree (PLACE_HYB), as

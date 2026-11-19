@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # ============================================================================
-# GTDEF_truth_spectrum12_plot.R   (user 2026-11-12: every ground truth gets a mismatch spectrum)
+# GTDEF_truth_spectrum12_plot.R
 #
 # Draws the source data of GTDEF_truth_spectrum12_source_data.R:
 #   GTDEF_bar_truth_spectrum12_<dataset>_<truth>   one figure per ground truth: % of KO-depleted gate sites per

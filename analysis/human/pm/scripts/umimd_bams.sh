@@ -1,12 +1,12 @@
 #!/bin/bash
-# umimd_bams.sh STAGE=dedup|merge|splitprep   (user 2026-11-08)
+# umimd_bams.sh STAGE=dedup|merge|splitprep
 # UMI-aware MarkDuplicates test: same grouping as the UMI-dedup BAMs (cell, UMI, 5' position, strand; reads with UB:Z:-
 # dropped) but the kept read is MarkDuplicates' highest base-quality sum instead of umi_tools' random pick.
 # Tag XU = <cell tag><UB> (DNA only; MarkDuplicates --BARCODE_TAG rejects other characters). Cell tag as the existing
 # UMI BAMs: teratoma CR (pipeline umi_tools --cell-tag CR), aorta CB (aorta_truth_dedup.sh --cell-tag=CB).
 #   dedup      array 1-7: 1-4 teratoma T{1-4}_NTC_ctrl (02_gt_bams/), 5-7 aorta control mice (pipeline_bams/);
 #              8-15 teratoma T{1-4}_ADAR1_KO, T{1-4}_ADARB1_KO and 16-18 aorta Adar1KD mice (STARsolo BAM, Myh11+ cells as
-#              aorta_pipeline_bams.sh): the knockout units of a umimd-built truth (user 2026-11-11);
+#              aorta_pipeline_bams.sh): the knockout units of a umimd-built truth;
 #              per chromosome in parallel, then concatenated in header order
 #   merge      array 1-5: 1 teratoma merged_NTC_ctrl (T1-T4), 2 aorta merged_CTRL (3 mice), 3 merged_ADAR1_KO,
 #              4 merged_ADARB1_KO, 5 aorta merged_KD

@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # =============================================================================
-# gt_score_rediportal_v6.R   (HANDOFF 2026-09-29 UPDATE-25)
+# gt_score_rediportal_v6.R
 #
 # Every reported configuration scored against REDIportal v2 instead of the v6 KO-depletion
 # truth, to test whether the ranking depends on how the v6 truth is defined (NTC editing

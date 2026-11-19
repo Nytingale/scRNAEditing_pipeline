@@ -5,10 +5,9 @@
 #   BAM types (sampleRmDup, recal, recalq20; gt_eval_v8/baq_compare/current) are linked in (STAGE=link_old);
 #   all 20 BCFtools configurations are scored on the v9 truth (GT_FP_RULE=ag, as scoring_pwcov76) and compared with
 #   scoring_pwcov76 (gt_v9_baq_compare.R). Submit from the Slurm login node: STAGE=submit_pile bash baqoff_v9.sh
-# baqoff_v8.sh   STAGE=manifest|filter|score|compare|submit   (Reviewer 2, major 3; user 2026-10-22)
+# baqoff_v8.sh   STAGE=manifest|filter|score|compare|submit   (Reviewer 2, major 3)
 # BCFtools with BAQ off (-B) through the current downstream filters, so that BAQ is the only difference from the
-# published call sets (gt_v8_baq_compare.R used the 2026-10-14 filter state). BAQ-off pileups (user 2026-11-06,
-# TSO-clipped tree): baq_compare/pile_nobaq/<tier>/<work hash>/ = the BCFTOOLS_MPILEUP task's own .command.sh with
+# published call sets (gt_v8_baq_compare.R used the 2026-10-14 filter state). BAQ-off pileups (TSO-clipped tree): baq_compare/pile_nobaq/<tier>/<work hash>/ = the BCFTOOLS_MPILEUP task's own .command.sh with
 # `nobaq` (same BAMs and options). The 16 reported BCFtools configurations, every NTC unit of
 # gt_eval_v8/filter_sweep2/manifest.tsv.
 #   piles     O/piles.tsv (tier, BCFTOOLS_MPILEUP work dir) of those configurations

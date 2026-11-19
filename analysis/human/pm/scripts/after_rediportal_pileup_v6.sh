@@ -1,5 +1,5 @@
 #!/bin/bash
-# after_rediportal_pileup_v6.sh   (HANDOFF 2026-09-29 UPDATE-25)
+# after_rediportal_pileup_v6.sh
 # After rediportal_pileup_v6.sh: check the merged-NTC pileup, flag REDIportal positions in
 # dbSNP156 common (same BED and bedtools as the v6 candidates), score against REDIportal,
 # draw the comparison figures and the cross-tier grid under each REDIportal truth variant.

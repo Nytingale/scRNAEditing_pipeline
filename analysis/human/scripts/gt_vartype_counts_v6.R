@@ -7,7 +7,7 @@
 #   mismatch = step 5 (near other MM types removed) gt_eval_v6/prewindow/results_<tier>/.../*_step5_nomm.tsv.gz
 #   both     = step 6 (+ clustered; benchmark set)  results_gt*_v6/.../*_pre100.tsv.gz
 #   clustered = clustered only (pass 1 off, w2 searched)  results_gt*_v6_nomm/.../*_pre100.tsv.gz
-#               (nomm_rerun_v6.sh, HANDOFF 2026-10-01 UPDATE-1)
+#               (nomm_rerun_v6.sh)
 # Output: gt_eval_v6/prewindow/vartype/vartype_counts_all_tiers.tsv.gz
 #   window_filter, tier, unit, caller, bam_type, strand_mode, snp_subtract, varType, n
 # Usage: Rscript gt_vartype_counts_v6.R [threads]

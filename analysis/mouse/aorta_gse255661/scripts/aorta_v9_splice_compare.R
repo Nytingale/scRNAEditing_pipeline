@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# aorta_v9_splice_compare.R splice|compare   (user 2026-11-07)
+# aorta_v9_splice_compare.R splice|compare
 #   splice   58 published + 2 Cellsnp-lite hybrid configurations (arm, sample), mismatch state:
 #              v9  gt_eval_v9/_parts/{pub,ch}/mismatch/<tier>  -> gt_eval_v9/scoring_pwcov/mismatch/<tier>
 #              v8  gt_eval_v8/scoring_pwcov/mismatch + gt_eval_v8/cellsnp_hybrid/scoring_pwcov

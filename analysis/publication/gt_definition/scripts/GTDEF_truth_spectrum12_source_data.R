@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # ============================================================================
-# GTDEF_truth_spectrum12_source_data.R   (user 2026-11-12: every ground truth gets a mismatch spectrum)
+# GTDEF_truth_spectrum12_source_data.R
 #
 # Mismatch spectrum (12 types, read orientation) of the KO-depleted gate sites behind each v9 ground truth,
 # before and after the truth cleaning, for both gates and t = 25 / 50 / 75% editing reduction in KO.

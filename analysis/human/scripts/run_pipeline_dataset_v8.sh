@@ -3,17 +3,17 @@
 # run_pipeline_dataset_v8.sh  DATASET=<name>  STAGE=run|collect   (2026-10-18)
 #
 # Full configuration grid on a dataset with the teratoma v8 settings (human/pm/scripts/run_pipeline_pm_gt_v8.sh),
-# for ranking configurations by the A-to-G composite rank (user 2026-10-18: every dataset, now and future, goes
+# for ranking configurations by the A-to-G composite rank (every dataset, now and future, goes
 # through all configurations). Add a dataset to the case block below.
 #   jzlxv3 : Ding et al. PBMC1, 10x 3' v3 (4 libraries)              UMI platform
 #   jzlss2 : Ding et al. PBMC1 + PBMC2 Smart-seq2, all 384 + 384 sequenced cells (per-cell BAMs; sample = all cells,
 #            goodCells via qc_barcodes = the authors' 253 + 273 QC-passing cells; no UMIs: no umi dedup / *UmiDup)
 #   jzlcel : Ding et al. PBMC1 + PBMC2 CEL-seq2 (8 libraries), STARsolo BAMs of 01_starsolobams (no template
-#            switching, so no TSO clipping; user 2026-11-07)                   UMI platform
+#            switching, so no TSO clipping)                   UMI platform
 #   obim   : Songco-Casey et al. 2022 O. bimaculoides optic lobe, 2 animals, 10x 3' v3 (26-nt barcode read)  UMI platform
 # Datasets other than the ground truths (teratoma, Replogle) get every bam type: the sample-level tiers plus goodCells,
 # annotated and celltype (each unprocessed, RmDup and, on UMI platforms, UmiDup and UmiMd = UMI-aware MarkDuplicates,
-# added 2026-11-09 by PI decision; -resume reuses every other task). Cell-type call sets are published
+# added 2026-11-09; -resume reuses every other task). Cell-type call sets are published
 # under <sample>__<celltype>/.
 # FRESH outdir / work-dir / launch dir: <datadir>/{results_v8, work_v8, nf_run_v8}.
 # Do not install into the scRNAEditing env while these run (invalidates -resume).
@@ -77,7 +77,7 @@ if [ "${UMIMD_ONLY:-0}" = 1 ]; then
   BAMTYPES="sampleUmiMd,goodCellsUmiMd,annotatedUmiMd,celltypeUmiMd"; DEDUP="umimd"
   OUTDIR="${OUTDIR}_umimd"; WORK="${WORK}_umimd"; RUNDIR="${RUNDIR}_umimd"
 fi
-# UMI_ONLY=1 (v10, user 2026-11-13): only the four *UmiDup bam types (umi_tools --random-seed=params.umi_seed), into
+# UMI_ONLY=1 (v10): only the four *UmiDup bam types (umi_tools --random-seed=params.umi_seed), into
 # separate dirs, replacing the unseeded umi_tools outputs of results_v8 (benchmark only; other analyses use *UmiMd)
 if [ "${UMI_ONLY:-0}" = 1 ]; then
   [ "$UMI" -eq 1 ] && [ "${UMIMD_ONLY:-0}" != 1 ] || { echo "ERROR: UMI_ONLY needs a UMI dataset, not with UMIMD_ONLY" >&2; exit 1; }

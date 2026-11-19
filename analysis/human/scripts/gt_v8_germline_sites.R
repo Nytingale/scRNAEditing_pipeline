@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 # =============================================================================
 # gt_v8_germline_sites.R   (2026-10-13)
-# Germline negatives for the germline false-positive rate (user 2026-10-13): PGP1 germline SNVs (donor of
+# Germline negatives for the germline false-positive rate: PGP1 germline SNVs (donor of
 # the iPSC line; whole-genome calls independent of the RNA data) that look like A-to-I editing in the
 # NTC reads. A site is a (position, read orientation) with
 #   PGP1 SNV         FILTER PASS, genomic REF>ALT = A>G (seen on + reads) or T>C (seen on - reads),

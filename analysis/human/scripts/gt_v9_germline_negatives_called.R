@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # =============================================================================
-# gt_v9_germline_negatives_called.R   (user 2026-11-15: are the 1.31 million germline negatives covered?)
+# gt_v9_germline_negatives_called.R
 # The germline negatives of the v9 KO truth are all PGP1 PASS SNVs that rule out editing (gt_truth_v9.R), with
 # no coverage requirement. Counts the negatives (t = 50%) that receive an A-to-G call in the NTC arm from at
 # least one of the 76 ranked configurations, and the calls per configuration, by negative kind.

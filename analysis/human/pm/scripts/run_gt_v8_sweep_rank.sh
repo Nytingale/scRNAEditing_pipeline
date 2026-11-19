@@ -1,6 +1,6 @@
 #!/bin/bash
 # run_gt_v8_sweep_rank.sh  [submit|truth|ucov_setup|ucov_collect|score|rank]   (2026-10-14)
-# Rank sensitivity to every v8 truth threshold (user 2026-10-14): one threshold at a time, +-1 step around
+# Rank sensitivity to every v8 truth threshold: one threshold at a time, +-1 step around
 # the centre (gt_robustness_v8.R, GT_ROBUST_TRUTH_OUT; depletion excluded: it is the t25 / t50 / t75 axis),
 # each neighbour truth scored like the main v8 ranking (call state mismatch, per-unit recall, 11 cell types)
 # and ranked (gt_rank_v7.R). The centre is rebuilt and scored too (must reproduce the main ranking).

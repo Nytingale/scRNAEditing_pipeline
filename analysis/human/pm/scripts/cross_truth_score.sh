@@ -1,5 +1,5 @@
 #!/bin/bash
-# cross_truth_score.sh   (user 2026-11-12)
+# cross_truth_score.sh
 # Scores every call set against every truth, to measure how much the deduplication used to build the truth favours
 # the configurations called on the same BAMs (shared-read bias).
 #   truths     v9 (published, unseeded umi_tools BAMs), seed1, seed2 (umi_tools --random-seed 1 / 2), umimd

@@ -71,16 +71,16 @@ if (!file.exists(file.path(SCORING_DIR, "gt_tier_scoring.tsv")))
   message("WARNING: missing ", file.path(SCORING_DIR, "gt_tier_scoring.tsv"), " (v5 / v6 inputs only)")
 message("scoring dir: ", SCORING_DIR)
 
-# The same tables for the three mismatch-window-filter states (HANDOFF 2026-09-29 UPDATE-22):
+# The same tables for the three mismatch-window-filter states:
 # none = step 4 (no window filter), mismatch = step 5 (nearby-mismatch filter only),
 # both = step 6 (the benchmark call set, SCORING_DIR).
 WINDOW_SCORING_DIRS <- c(
   none     = file.path(REPO_DIR, "human", "pm", "gt_eval_v6", "prewindow", "scoring", "sweep_infneg", "teratoma_inputs"),
   mismatch = file.path(REPO_DIR, "human", "pm", "gt_eval_v6", "prewindow", "scoring_step5", "sweep_infneg", "teratoma_inputs"),
   both     = SCORING_DIR)
-# States shown in the cross-tier grids: the full benchmark call set only (HANDOFF UPDATE-25).
+# States shown in the cross-tier grids: the full benchmark call set only.
 # Without window filters every call set is >= 31% non-A-to-G; with step 5 only the median
-# is 58-70% A-to-G (TERATOMA_mismatch_composition_plot.R, HANDOFF UPDATE-24). The Local mismatch
+# is 58-70% A-to-G (TERATOMA_mismatch_composition_plot.R). The Local mismatch
 # context column is drawn only when more than one state is shown.
 GRID_WINDOW_STATES <- "both"
 GRID_SHOW_WINDOW <- length(GRID_WINDOW_STATES) > 1

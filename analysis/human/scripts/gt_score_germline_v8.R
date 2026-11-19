@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 # =============================================================================
 # gt_score_germline_v8.R   (2026-10-13)
-# Germline false-positive rate (user 2026-10-13), a truth-independent companion to the v8 F1.
+# Germline false-positive rate, a truth-independent companion to the v8 F1.
 #   unit         as gt_score_v7.R: arm = NTC_ctrl, sample = T1-T4_NTC_ctrl, celltype = NTC_ctrl__<ct>
 #                (GT_UNIT_KEEP: the 11 kept cell types)
 #   covered      germline sites (gt_v8_germline_sites.R) with >= GT_UNIT_MIN_COV (10) reads on their read

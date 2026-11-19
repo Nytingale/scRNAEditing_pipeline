@@ -2,7 +2,7 @@
 # Manuscript colour maps and shared ggplot2 helpers for scRNAEditing figures.
 # Source this file from every script in plotting/. Do not put figure code here.
 #
-# PROJECT RULES (see .cursor/rules/plotting-colours.mdc):
+# PROJECT RULES:
 #   1. Never put a red and a green on the same plot (red-green CVD, ~8% of men).
 #      Build scales from `okabe_ito`; use blue-vs-orange for two-class
 #      contrasts; use `scale_fill_manual_cvd()` / `scale_colour_manual_cvd()`,

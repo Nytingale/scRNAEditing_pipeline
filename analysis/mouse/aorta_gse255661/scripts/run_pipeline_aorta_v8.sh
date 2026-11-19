@@ -31,7 +31,7 @@ OUTDIR="$DATADIR/results_v8"
 WORK="$DATADIR/work_v8"
 RUNDIR="$DATADIR/nf_run_v8"
 STAGE=${STAGE:-run}
-# UMIMD=1 (PI decision 2026-11-09): UMI-aware MarkDuplicates (sampleUmiMd) only, from the prebuilt BAMs of
+# UMIMD=1: UMI-aware MarkDuplicates (sampleUmiMd) only, from the prebuilt BAMs of
 # human/pm/scripts/umimd_bams.sh (umimd_bam column, samplesheet_aorta_ctrl_umimd.csv), into its own outdir / work dir
 # (a -resume of work_v8 is not cached: CELLSNP_LITE and INFER_STRANDEDNESS changed since). Scoring splices.
 DEDUP="none,coordinate,umi"; BAMTYPES="sample,sampleRmDup,sampleUmiDup,recal,recalq20"
@@ -39,7 +39,7 @@ if [ "${UMIMD:-0}" = 1 ]; then
   SHEET="${SHEET%.csv}_umimd.csv"; DEDUP="umimd"; BAMTYPES="sampleUmiMd"
   OUTDIR="${OUTDIR}_umimd"; WORK="${WORK}_umimd"; RUNDIR="${RUNDIR}_umimd"
 fi
-# UMI=1 (v10, user 2026-11-12): umi_tools configurations only (sampleUmiDup) on the seed-8787 truth/bams, into
+# UMI=1 (v10): umi_tools configurations only (sampleUmiDup) on the seed-8787 truth/bams, into
 # results_v8_umi; STAGE=collect then runs STAGE=place (human/pm/scripts/place_umi_calls.sh: sampleUmiDup subtrees into
 # results_v8, Cellsnp-lite hybrid into gt_eval_v8/cellsnp_hybrid/results/results_v8/ as cellsnp_hybrid_v8.sh).
 #   qsub -v UMI=1 mouse/aorta_gse255661/scripts/run_pipeline_aorta_v8.sh

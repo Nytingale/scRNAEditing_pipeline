@@ -1,6 +1,6 @@
 #!/bin/bash
 # filter_sweep2_v8.sh   STAGE=manifest|submit|union|apply|check|score|rank   (2026-10-21)
-# Downstream-filter sweep, second design (user 2026-10-21): coverage 5 / 10 / 15, variant reads 2 / 3 / 4, editing
+# Downstream-filter sweep, second design: coverage 5 / 10 / 15, variant reads 2 / 3 / 4, editing
 # level 1 / 2 / 3%, one at a time from the main values (10 reads, 3 variant reads, 1%); dbSNP, multi-allelic and
 # JACUSA2-score removal and the nearby-mismatch window filter stay on (not swept). Every threshold is applied to
 # every caller (REDItools3 included, r3floor_rerun_v8.sh). Same NTC tasks as filter_sweep_v8.sh (its manifest.tsv).

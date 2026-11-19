@@ -1,5 +1,5 @@
 #!/bin/bash
-# umi_seed_reps.sh DS=teratoma|aorta SEED=<n> STAGE=submit|split|tsetup|v9truth|v9ucov|v9collect|aortav9|nf   (user 2026-11-11)
+# umi_seed_reps.sh DS=teratoma|aorta SEED=<n> STAGE=submit|split|tsetup|v9truth|v9ucov|v9collect|aortav9|nf
 # umi_tools seed replicates: the same umi_tools BAMs, truth and BCFtools calls as production, from BAMs deduplicated
 # with --random-seed=<n> (human/pm/scripts/umi_seed_bams.sh, aorta_truth_dedup.sh), to see whether configuration
 # rankings depend on the seed. Seed 8787 is the production run (in place); this script is for the other seeds.
@@ -15,10 +15,10 @@
 #   aorta     BAMs  = mouse/aorta_gse255661/truth/umi_seed_reps/seed<n>/ (aorta_truth_dedup.sh SEED=<n> OUT=...)
 #             R     = mouse/aorta_gse255661/umi_seed_reps/seed<n>/: spectrum12/ (aorta_truth_spectrum12.sh, regions and MGP
 #                     SNP BED reused), eval/ (aorta_truth_eval.R), eval_v9/excluded/ (aorta_truth_v9.R), results/
-#   SEED=umimd (user 2026-11-11): the same truth chain on the UMI-aware MarkDuplicates BAMs (02_gt_bams_umimd,
+#   SEED=umimd: the same truth chain on the UMI-aware MarkDuplicates BAMs (02_gt_bams_umimd,
 #   02_gt_bams_celltype_umimd, pipeline_bams_umimd; links instead of split) -> umi_seed_reps/umimd/; no caller run
 #   (the umimd calls exist). Tests whether umi_tools' lead depends on sharing the truth's reads.
-#   SEED=coord (user 2026-11-12): the same on the coordinate (MarkDuplicates) BAMs the coordinate configurations were
+#   SEED=coord: the same on the coordinate (MarkDuplicates) BAMs the coordinate configurations were
 #   called on (teratoma 02_gt_bams_rmdup_v6, 02_gt_bams_celltype_rmdup_v6; aorta controls results_v8/*/02_dedup, Adar1KD
 #   pipeline_bams_coord from aorta_coord_bams.sh) -> umi_seed_reps/coord/; links, no caller run.
 #   Submit (login node): DS=teratoma SEED=1 HOLD=<bam merge job> bash human/pm/scripts/umi_seed_reps.sh

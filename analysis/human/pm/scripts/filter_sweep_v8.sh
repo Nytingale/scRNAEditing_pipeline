@@ -1,6 +1,6 @@
 #!/bin/bash
 # filter_sweep_v8.sh   STAGE=manifest|union|apply|link|check|score|rank   (2026-10-19)
-# Downstream-filter sweep (user 2026-10-19): one downstream filter at a time moved from the main values
+# Downstream-filter sweep: one downstream filter at a time moved from the main values
 # (min_cov 10, min_alt 3, min_edit_level 1%, multi-mismatch / dbSNP / JACUSA2-score removal on; settings.tsv) or
 # turned off, on every NTC DOWNSTREAM_R task of the v8 arm, sample and 11-cell-type runs; each setting scored and
 # ranked like the main v8 analysis (call state mismatch = step 5; centre step 4 = no window filter).

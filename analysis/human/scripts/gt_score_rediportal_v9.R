@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # =============================================================================
-# gt_score_rediportal_v9.R   GT_REDI_PART=universe|score   (user 2026-11-07)
+# gt_score_rediportal_v9.R   GT_REDI_PART=universe|score
 #
 # REDIportal v2 as truth under the v9 rules. As gt_score_rediportal_v8.R except:
 #   1. universe from both read orientations: merged NTC counts at every 12-type candidate position

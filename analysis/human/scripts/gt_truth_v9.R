@@ -2,7 +2,7 @@
 # =============================================================================
 # gt_truth_v9.R   (2026-11-07)
 #
-# Teratoma ground truth v9 (user 2026-11-07): KO-responsive A>G and T>C in read orientation, scored with
+# Teratoma ground truth v9: KO-responsive A>G and T>C in read orientation, scored with
 # A-to-G calls only (gt_score_v7.R GT_FP_RULE=ag).
 #   positives   gt_truth_v7.R + gt_truth_v7_variants.R with GT_V7_VARIANT=AGTC: read-orientation A>G or T>C
 #               positions clearing the frozen v6 criteria (counts within one read orientation; where both

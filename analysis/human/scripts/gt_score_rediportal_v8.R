@@ -2,7 +2,7 @@
 # =============================================================================
 # gt_score_rediportal_v8.R   (2026-10-13)
 #
-# REDIportal v2 as truth, v8 rules (user 2026-10-13). Differs from gt_score_rediportal_v6.R in two ways:
+# REDIportal v2 as truth, v8 rules. Differs from gt_score_rediportal_v6.R in two ways:
 #   1. per-truth universe U_v: merged NTC A-to-G candidate positions (gt_eval_v6/pileups/bq30, the v6 scan:
 #      stranded by the reference base, BQ/MQ >= 30) that pass the truth's own site rule plus an editing
 #      level floor of 1%; dbSNP common, GT_REDI_EXCLUDE_BED (PGP1) and multiallelic positions removed.

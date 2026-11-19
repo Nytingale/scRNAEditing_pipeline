@@ -4,7 +4,7 @@
 #$ -l h_vmem=4G
 #$ -o ${SCRNA_DIR:-.}/tmp/s5/swap_umi_calls_dataset.$JOB_ID.log
 #$ -j y
-# swap_umi_calls_dataset.sh   (v10, user 2026-11-14)
+# swap_umi_calls_dataset.sh   (v10)
 # Non-ground-truth UMI datasets (jzlxv3, jzlcel): replace the unseeded umi_tools outputs in human/<ds>/results_v8 with
 # the seeded run (run_pipeline_dataset_v8.sh UMI_ONLY=1 -> results_v8_umi).
 #   1. archive (mv) every umi_tools output of results_v8 to human/<ds>_unseeded/results_v8/<same path>, logged in

@@ -2,7 +2,7 @@
 # =============================================================================
 # run_gt_v8_ko_floor.sh  [submit|eval|truth|ucov_setup|ucov|ucov_collect|score|rank]   (2026-10-17)
 #
-# KO coverage floor sweep (user 2026-10-17): v8 truth sets built exactly as the depth gate (NTC cov >= 10 and
+# KO coverage floor sweep: v8 truth sets built exactly as the depth gate (NTC cov >= 10 and
 # KO cov >= 10 per arm) with the KO floor at 5 (gate depth5) and 3 (depth3); NTC rules unchanged (rule 2
 # already implies >= 20 merged NTC reads). Same chain as the v8 truth, reusing the v6 spectrum12 pileups:
 #   eval        gt_spectrum12_eval_v6.R  GT_COVER_GATE=depth<N> -> gt_eval_v6/spectrum12/eval_depth<N>/

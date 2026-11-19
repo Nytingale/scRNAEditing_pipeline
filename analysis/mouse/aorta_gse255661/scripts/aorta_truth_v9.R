@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # =============================================================================
-# aorta_truth_v9.R   (user 2026-11-07)
+# aorta_truth_v9.R
 #
 # Aorta ground truth under the teratoma v9 rules (human/scripts/gt_truth_v9.R), from the 12-type gate tables of
 # aorta_truth_eval.R (truth/eval/{excluded,included}/truth12_sites.tsv.gz; no new pileups):

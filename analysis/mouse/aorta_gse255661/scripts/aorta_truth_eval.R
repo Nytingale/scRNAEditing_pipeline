@@ -15,7 +15,7 @@
 #                  and NOT in REDIportal. Unlike the teratoma (not depleted in ADAR1 KO AND ADARB1 KO), the aorta has
 #                  only an Adar1 arm, so "not depleted" also holds at ADAR2 sites (Copa I164V: 50% CTRL, 55% KD);
 #                  a call there is correct editing. Negatives in REDIportal are therefore unscored
-#                  (class unscored_negative_rediportal; user 2026-10-26).
+#                  (class unscored_negative_rediportal).
 #   A-to-G truth   type AG gate sites; multiallelic removed (third allele >= 3 reads and >= 5% of depth in merged
 #                  CTRL on the read strand); removal of sites near other mismatch types: >= 2 mismatch types within
 #                  +- w1 nt on the read strand among all 12-type gate sites of the gate, w1 searched 20-200 by 20 and

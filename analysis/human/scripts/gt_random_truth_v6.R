@@ -36,7 +36,7 @@ TIERS = c("arm", "sample", "celltype")
 LAB = c("TRUE", "FP_known_not_depleted", "FP_novel")
 UNREPORTED_BAM = "sample"
 # A BAM-processing configuration whose defining parameter has no effect on a caller's calls is
-# recorded but not reported for that caller (HANDOFF 2026-09-29 UPDATE-19). scAllele has no per-base
+# recorded but not reported for that caller. scAllele has no per-base
 # quality filter: recalq20 == recal, and BQSR changes only FILTER, so its recal BAM differs from
 # sampleRmDup only by SplitNCigarReads.
 UNREPORTED_CALLER_BAM = list(scallele = c("recal", "recalq20"), cellsnp = c("recal", "recalq20"))

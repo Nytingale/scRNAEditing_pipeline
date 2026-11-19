@@ -2,7 +2,7 @@
 # =============================================================================
 # gt_v8_fisher_truth.R   (2026-10-18)
 #
-# Set B of HANDOFF_2026-10-17 4c-DECISION: KO positives by a one-sided Fisher's exact test instead of the
+# Set B: KO positives by a one-sided Fisher's exact test instead of the
 # m = 3 expected-read gate. Universe = the v8 truth built with gate depth1 (NTC cov >= 10, KO cov >= 1 per
 # arm; all other v8 rules and cleaning unchanged; run_gt_v8_fisher.sh stages eval + truth).
 #   Fisher p per arm  one-sided (KO editing lower than merged NTC): phyper(KO alt, KO alt + NTC alt,

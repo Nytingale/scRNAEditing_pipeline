@@ -26,7 +26,7 @@
 #
 # Usage: Rscript gt_score_v6.R <tier> [results_dir] [outdir] [call_file_regex]
 #   call_file_regex defaults to _pre100\.tsv\.gz$; the pre-window comparison passes
-#   _step4_cov_edit_filtered\.tsv\.gz$ (gt_eval_v6/prewindow/, HANDOFF 2026-09-29 UPDATE-21)
+#   _step4_cov_edit_filtered\.tsv\.gz$ (gt_eval_v6/prewindow/)
 # Outputs (<outdir>, default human/pm/gt_eval_v6/scoring/<tier>/):
 #   gt_v6_unit_scores.tsv    one row per unit x configuration
 #   gt_v6_scores.tsv         one row per configuration (tier summary; all BAM types)
@@ -49,7 +49,7 @@ dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 N_BOOT = 500
 UNREPORTED_BAM = "sample"   # Unprocessed: recorded, not reported
 # A BAM-processing configuration whose defining parameter has no effect on a caller's calls is
-# recorded but not reported for that caller (HANDOFF 2026-09-29 UPDATE-19). scAllele has no per-base
+# recorded but not reported for that caller. scAllele has no per-base
 # quality filter: recalq20 == recal, and BQSR changes only FILTER, so its recal BAM differs from
 # sampleRmDup only by SplitNCigarReads.
 UNREPORTED_CALLER_BAM = list(scallele = c("recal", "recalq20"), cellsnp = c("recal", "recalq20"))

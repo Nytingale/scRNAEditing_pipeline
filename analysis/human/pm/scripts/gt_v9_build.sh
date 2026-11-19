@@ -1,5 +1,5 @@
 #!/bin/bash
-# gt_v9_build.sh STAGE=truth|ucov|collect|score|rank|rank76|submit   (user 2026-11-07)
+# gt_v9_build.sh STAGE=truth|ucov|collect|score|rank|rank76|submit
 # Teratoma ground truth v9 (human/scripts/gt_truth_v9.R) and the headline rescore (state mismatch, 60
 # configurations, three tiers, pwcov settings, GT_FP_RULE=ag) into human/pm/gt_eval_v9/.
 #   truth    gt_truth_v7.R + gt_truth_v7_variants.R (GT_V7_VARIANT=AGTC, w1 searched) -> V9/build/;

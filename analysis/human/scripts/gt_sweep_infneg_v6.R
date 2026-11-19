@@ -3,7 +3,7 @@
 # gt_sweep_infneg_v6.R   (2026-09-29)
 #
 # Depletion-threshold sweep scored against INFORMATIVE negatives, with a
-# random-truth control (HANDOFF_2026-09-29 UPDATE-16/17).
+# random-truth control.
 #
 # Eligible universe E: the v6 gates (evaluable, NTC edited, reproducible) = 8,553 sites.
 # Per KO arm (ADAR1_KO, ADARB1_KO), with the gt_eval_classify_v6.R definitions:
@@ -61,7 +61,7 @@ TIERS = c("arm", "sample", "celltype")
 ARMS = c("ADAR1_KO", "ADARB1_KO")
 UNREPORTED_BAM = "sample"
 # A BAM-processing configuration whose defining parameter has no effect on a caller's calls is
-# recorded but not reported for that caller (HANDOFF 2026-09-29 UPDATE-19). scAllele has no per-base
+# recorded but not reported for that caller. scAllele has no per-base
 # quality filter: recalq20 == recal, and BQSR changes only FILTER, so its recal BAM differs from
 # sampleRmDup only by SplitNCigarReads.
 UNREPORTED_CALLER_BAM = list(scallele = c("recal", "recalq20"), cellsnp = c("recal", "recalq20"))

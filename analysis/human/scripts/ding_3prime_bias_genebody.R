@@ -5,7 +5,7 @@
 #   relative distance from the 3' end = genomic distance from the gene 3' end / gene length
 #   (0 = gene 3' end, 1 = gene 5' end; gene = union of the gene's RefSeq transcripts on the site's strand)
 # Sites inside more than one gene on their strand (the read's gene is unknown) and sites outside RefSeq genes are
-# left out (user 2026-10-25; previously such sites were given the shortest gene).
+# left out (previously such sites were given the shortest gene).
 # Input : human/jzlxv3/three_prime_bias/rp_<X10>_<SS2>_<DEPTH>_sites.tsv.gz (ding_3prime_bias_rediportal_pu.R)
 # Output: human/jzlxv3/three_prime_bias/rp_<X10>_<SS2>_<DEPTH>_genebody_{sites.tsv.gz,bins.tsv,tests.tsv}
 # Usage : X10=x10u SS2=ss2p1 DEPTH=sequenced Rscript ding_3prime_bias_genebody.R

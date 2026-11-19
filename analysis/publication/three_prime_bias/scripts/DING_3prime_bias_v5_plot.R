@@ -6,7 +6,7 @@
 # number of unique reads. One pair of panels per gene region: left, edited sites per platform (Smart-seq2 = mean over
 # 3 subsampling seeds, bar = min-max); right, edited sites by distance from the gene 3' end as % of each platform's
 # edited sites in the region. b: edited sites found by Smart-seq2 only, both platforms or 10x only, per region of the
-# site annotation (area-proportional; mean over the 3 seeds; user 2026-10-25, as panel b of v2).
+# site annotation (area-proportional; mean over the 3 seeds, as panel b of v2).
 # Input : publication/three_prime_bias/source_data/ding_3prime_bias_v5.{edited_by_region,dist3p_bins,overlap_by_region}.tsv
 #         (DING_3prime_bias_v5_source_data.R)
 # Output: publication/three_prime_bias/figures/ding_3prime_bias_v5.{svg,png},

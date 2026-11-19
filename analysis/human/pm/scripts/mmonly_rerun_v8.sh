@@ -1,6 +1,6 @@
 #!/bin/bash
 # mmonly_rerun_v8.sh   STAGE=manifest | (SGE array, CHUNK manifest rows per element)   (2026-10-15)
-# Main call state with the nearby-mismatch window chosen on pass 1 alone (user 2026-10-15: the joint w1 x w2 search,
+# Main call state with the nearby-mismatch window chosen on pass 1 alone (the joint w1 x w2 search,
 # scored after both passes, let the clustered-sites pass steer w1). Every NTC DOWNSTREAM_R / DOWNSTREAM_R_SCALLELE
 # task of the v8 arm, sample, cell-type and split-B runs, and the 8 JACUSA2 replicate-mode downstream runs, is re-run
 # from its own .command.sh with nextflow/bin/downstream_filter{,_scallele}.R replaced by the copies

@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# gt_v10_configs76.R   (user 2026-11-14: response figures to 76 configurations; was tmp/resp_v10/configs76_seeded.R)
+# gt_v10_configs76.R
 # Seeded (v10) replacement of tmp/meeting_v9_2026-11-07/configs60_v9.tsv for the 76 ranked configurations:
 #   ag_*, pct_*  A-to-G sites and A-to-G % of the unique (site, varType) of each configuration's step5_nomm call set in
 #                the arm unit (teratoma NTC_ctrl, aorta CTRL); call-set roots as human/pm/scripts/cross_truth_score.sh

@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# gt_v9_redi_splice.R   (user 2026-11-07)
+# gt_v9_redi_splice.R
 # REDIportal v9 scoring: 58 published (_parts/pub) + 2 Cellsnp-lite hybrid (_parts/ch) configurations, as gt_v8_splice60.R
 #   GT_V9_DIR/rediportal_v9/_parts/{pub,ch}/scoring_mismatch -> GT_V9_DIR/rediportal_v9/scoring_mismatch
 # argument splice76 (2026-11-13): these 60 + 16 UMI-aware MarkDuplicates configurations (umimd_redi_score.sh)

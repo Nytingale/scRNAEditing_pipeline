@@ -1,5 +1,5 @@
 #!/bin/bash
-# aorta_v9_build.sh STAGE=truth|score|rank|submit   (user 2026-11-07)
+# aorta_v9_build.sh STAGE=truth|score|rank|submit
 # Aorta ground truth v9 (aorta_truth_v9.R) and the headline rescore (state mismatch, 58 published + 2 Cellsnp-lite
 # hybrid configurations, arm and sample tiers, aorta_score_v8.sh settings, GT_FP_RULE=ag) into gt_eval_v9/.
 #   truth   aorta_truth_v9.R -> truth/eval_v9/excluded/

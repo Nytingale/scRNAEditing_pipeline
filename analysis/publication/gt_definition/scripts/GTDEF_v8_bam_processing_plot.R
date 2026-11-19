@@ -15,7 +15,7 @@
 # The coordinate-vs-UMI hex panels are truth-independent (GTDEF_bam_processing_plot.R) and not redrawn.
 # Unprocessed BAMs (bam_type `sample`) are kept in the report tables but not plotted.
 # Outputs: GTDEF_v8_bar_mismatch_spectrum{,6}_by_bamtype_vs_TRUE, GTDEF_v8_upset_TRUE_sites_by_bamtype{,_<tier>}
-#          (no Euler diagrams: user 2026-10-13)
+#          (no Euler diagrams)
 #
 # Usage: Rscript GTDEF_v8_bam_processing_plot.R [DATASET]
 # ============================================================================

@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# cross_truth_agreement.R DS   (user 2026-11-12)
+# cross_truth_agreement.R DS
 # Agreement truth: a deduplication-neutral truth from the four truths of the cross-truth test (v9 = unseeded
 # umi_tools, seed1, seed2, umimd). Per (gate, site) and threshold, the class is kept when all four truths give the same
 # class; otherwise, or when the site is missing from any truth, it is "unresolved" (ignored by gt_score_v7.R).

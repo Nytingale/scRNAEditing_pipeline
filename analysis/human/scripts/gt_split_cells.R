@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 # =============================================================================
 # gt_split_cells.R   (2026-10-13)
-# Split-by-cells circularity test (user 2026-10-13): NTC cells split at random into halves A and B within
+# Split-by-cells circularity test: NTC cells split at random into halves A and B within
 # every teratoma x cell type (seed 20261013). Truth from half A (+ the KO arms, full), calls from half B,
 # so truth-defining and called reads are disjoint.
 # Input : _celltype_frags_umi_v6/_cells_NTC_ctrl.tsv (sample_id, cell_key, celltype; all 9,540 NTC cells),

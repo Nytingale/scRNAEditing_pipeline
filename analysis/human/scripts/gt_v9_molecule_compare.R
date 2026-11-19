@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# gt_v9_molecule_compare.R   (2026-11-17; v9 / 76-configuration copy of gt_v8_molecule_compare.R, user 2026-10-22)
+# gt_v9_molecule_compare.R   (2026-11-17; v9 / 76-configuration copy of gt_v8_molecule_compare.R)
 # Ranking with >= MIN_MOL variant molecules (molecule_filter_v8.R, scored as the headline: scoring_pwcov, gate_cov)
 # against the headline ranking, per KO-based truth set; and the KO-based positives by variant molecules in the merged
 # NTC arm (UMI-deduplicated BAM).

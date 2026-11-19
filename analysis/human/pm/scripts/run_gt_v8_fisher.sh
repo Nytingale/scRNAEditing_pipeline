@@ -2,7 +2,7 @@
 # =============================================================================
 # run_gt_v8_fisher.sh  [submit|eval|truth|fisher|ucov_setup|ucov|ucov_collect|score|rank]   (2026-10-18)
 #
-# Set B of HANDOFF_2026-10-17 4c-DECISION: v8 truth without the m = 3 gate, positives by a one-sided Fisher's
+# Set B: v8 truth without the m = 3 gate, positives by a one-sided Fisher's
 # exact test (KO vs merged NTC reads) plus the drop >= t. Same chain as run_gt_v8_ko_floor.sh:
 #   eval        gt_spectrum12_eval_v6.R  GT_COVER_GATE=depth1 (NTC cov >= 10, KO cov >= 1) -> spectrum12/eval_depth1/
 #   truth       gt_truth_agtc_test_v6.R -> gt_truth_v7.R -> gt_truth_v7_variants.R (w1 searched, as v8)

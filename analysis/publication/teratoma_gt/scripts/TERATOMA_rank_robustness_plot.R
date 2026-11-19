@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # ============================================================================
-# TERATOMA_rank_robustness_plot.R   (HANDOFF 2026-09-29 UPDATE-26; nine truths 2026-10-01)
+# TERATOMA_rank_robustness_plot.R
 # Overall cross-tier rank of each reported configuration (full benchmark call set) under the nine
 # truth definitions in TERATOMA_common.R (NINE_TRUTHS), all global (one list of true sites for
 # every unit); configurations ordered by their worst rank across the nine.

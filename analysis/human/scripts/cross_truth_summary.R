@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# cross_truth_summary.R   (user 2026-11-12)
+# cross_truth_summary.R
 # Cross-truth scoring summary (human/pm/scripts/cross_truth_score.sh): every call set against every truth.
 # Truths: v9 (unseeded umi_tools BAMs), seed1, seed2 (umi_tools --random-seed 1 / 2), umimd (UMI-aware MarkDuplicates),
 #         agree (sites labelled the same by all four; cross_truth_agreement.R).

@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # ============================================================================
-# GTDEF_truth_sets_table.R   (user 2026-11-15: supplementary table of the ground truth sets)
+# GTDEF_truth_sets_table.R
 #
 # One row per dataset x truth set x editing reduction threshold t (REDIportal sets: t = NA). Same numbers as the
 # "Ground truth sets" table of the response (review/EDIT_SCRIPTS/edit_user_truth_table_2026-11-15.py).

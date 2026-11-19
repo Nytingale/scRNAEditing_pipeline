@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# TRUTHFREE_v10_harmonic_scatter.R   (user 2026-11-14: Response Figure 12 on the 76 configurations)
+# TRUTHFREE_v10_harmonic_scatter.R
 # tmp/meeting_v9_2026-11-09/truthfree_scatter_harmonic.R (RESPONSE=1) for the 76 ranked configurations (58 published,
 # 2 Cellsnp-lite hybrid, 16 UMI-aware MarkDuplicates; umi_tools seeded): truth-free measures (A-to-G percentage, number
 # of A-to-G sites, harmonic score) against mean F1, precision and recall, teratoma (a) and held-out aorta (b), with

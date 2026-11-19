@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Per-site read and molecule counts of each base (Reviewer 2, major 1; user 2026-10-22).
+"""Per-site read and molecule counts of each base (Reviewer 2, major 1).
 
   molecule_counts_v8.py --bam B.bam --fasta G.fa --sites S.tsv.gz --min_bq Q --min_mapq M --out O.tsv.gz [--threads N]
 

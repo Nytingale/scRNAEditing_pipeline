@@ -26,7 +26,7 @@
 suppressPackageStartupMessages(library(data.table))
 B = Sys.getenv("SCRNA_DIR", ".")
 PM = file.path(B, "human/pm")
-# Window-filter call sets (HANDOFF 2026-09-29 UPDATE-22) reuse this script through three overrides:
+# Window-filter call sets reuse this script through three overrides:
 #   GT_SCORING_DIR  scoring root (default gt_eval_v6/scoring)
 #   GT_RES_TEMPLATE results dir per tier relative to human/pm, %s = arm|sample|celltype
 #   GT_CALL_RE      call-file regex (default _pre100\.tsv\.gz$)

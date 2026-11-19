@@ -1,6 +1,6 @@
 #!/bin/bash
 # r3floor_rerun_v8.sh   STAGE=manifest | run (SGE array, M=<manifest subset>) | check | swap   (2026-10-21)
-# REDItools3 minimum coverage (user 2026-10-21: the downstream filter applies >= 10 reads, >= 3 variant reads and
+# REDItools3 minimum coverage (the downstream filter applies >= 10 reads, >= 3 variant reads and
 # >= 1% editing to every caller). The REDItools3 parse of downstream_filter{,_v8,_mmonly}.R had no min_cov cut, so
 # REDItools3 calls with < 10 reads reached every table; the cut is now in the parse (backups:
 # nextflow/_superseded/2026-10-21_reditools3_min_cov/, human/pm/scripts/_superseded_2026-10-21_reditools3_min_cov/).

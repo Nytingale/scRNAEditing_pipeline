@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # ============================================================================
-# TERATOMA_rediportal_compare_plot.R   (HANDOFF 2026-09-29 UPDATE-25)
+# TERATOMA_rediportal_compare_plot.R
 # Ranking of the reported configurations (full benchmark call set) under the v6 KO-depletion
 # truth vs under REDIportal v2 as truth (gt_score_rediportal_v6.R). Same rank-sum as the
 # cross-tier grid: F1 rank within tier, summed over the three tiers.

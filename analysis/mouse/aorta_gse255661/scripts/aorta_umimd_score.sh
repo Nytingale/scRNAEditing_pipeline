@@ -1,5 +1,5 @@
 #!/bin/bash
-# aorta_umimd_score.sh   (user 2026-11-09; production run 2026-11-11)
+# aorta_umimd_score.sh   (production run 2026-11-11)
 # v9 scoring of the aorta UMI-aware MarkDuplicates call sets, same settings as aorta_v9_build.sh score (v9 truth and
 # unit coverage, gate_cov, edit unit CTRL, GT_FP_RULE=ag, step5_nomm call tables).
 # Default SRC=prod: results_v8_umimd (production, 16 configurations, bam type sampleUmiMd); array 1 arm, 2 sample.

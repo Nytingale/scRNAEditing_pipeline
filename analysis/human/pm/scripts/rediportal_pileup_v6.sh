@@ -1,5 +1,5 @@
 #!/bin/bash
-# rediportal_pileup_v6.sh   (HANDOFF 2026-09-29 UPDATE-25)
+# rediportal_pileup_v6.sh
 # Stranded coverage at every REDIportal v2 A-to-I position (chr1-22, X, Y) in each NTC unit
 # BAM of the three GT tiers, for the REDIportal-as-truth benchmark (gt_score_rediportal_v6.R).
 #   arm      02_gt_bams_umi_v6/merged_NTC_ctrl.bam

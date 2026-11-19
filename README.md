@@ -157,7 +157,7 @@ nextflow run main.nf -params-file genome.yaml --input samplesheet.csv \
 
 ## Recommended configuration
 
-In the teratoma ADAR1 knockout benchmark (pseudobulk; ground truth from sites with decreased editing in the knockout), the top-ranked configuration was BCFtools on deduplicated BAMs (coordinate or UMI dedup), `hybrid` strand mode and the per-sample SNP blacklist (`snp_on`), with removal of sites near other mismatch types:
+In the teratoma ADAR1 / ADAR2 knockout benchmark (pseudobulk; 76 method configurations scored against six knockout-based and three REDIportal ground truth sets), BCFtools on deduplicated BAMs with annotation stranding and the per-sample SNP blacklist (`snp_on`) ranked 1st-3rd on every knockout-based truth set (one configuration per deduplication method, within 0.0005 mean F1 of each other), ahead of the best other caller, JACUSA2, by 0.027-0.127 mean F1. On a held-out mouse aorta Adar1 knockout dataset, scored with the same settings, it ranked 1st on all six knockout-based truth sets. The recommended configuration uses UMI-aware MarkDuplicates and removes sites near a different mismatch type (discordant-mismatch filter):
 
 ```bash
 nextflow run main.nf \
@@ -168,15 +168,17 @@ nextflow run main.nf \
     --strand_annots /path/to/strand_annotations.RData \
     --main_chroms /path/to/main_chroms.txt \
     --callers bcftools \
-    --bam_types sampleRmDup,sampleUmiDup \
-    --dedup coordinate,umi \
-    --strand_modes hybrid \
+    --bam_types sampleUmiMd \
+    --dedup umimd \
+    --strand_modes annotation \
     --snp_subtract_modes on \
     --mismatch_window_filter true \
     -profile singularity
 ```
 
-Best configuration of each other caller, ranked across the knockout truth sets: JACUSA2 5th, REDItools3 7th, scAllele 9th, GATK 27th, Cellsnp-lite 32nd.
+For libraries without UMIs (for example Smart-seq2), use coordinate deduplication instead (`--bam_types sampleRmDup --dedup coordinate`).
+
+REDItools3 with annotation stranding ranked 1st-3rd on the three REDIportal truth sets (10th-16th on the knockout-based sets) and is a close alternative for catalogue-oriented analyses. The best scAllele and Cellsnp-lite configurations ranked 13th-34th and 13th-28th across the nine teratoma truth sets.
 
 ## Reference files
 

@@ -182,7 +182,7 @@ setnames(kc, "value", "ko_min_cov"); fwrite(kc, file.path(OUT, "ko_cov_curve.tsv
 msg("m curve: TRUE at m = 3: ", mc[abs(ko_min_expected - 3) < 1e-9, n_true],
     "; KO cov curve: TRUE at 10: ", kc[ko_min_cov == 10, n_true])
 
-# ---- optional: full truth tables for the +-1-step neighbours (rank sensitivity, user 2026-10-14) -------
+# ---- optional: full truth tables for the +-1-step neighbours (rank sensitivity) -------
 # GT_ROBUST_TRUTH_OUT=<dir> writes <dir>/<axis>_<value>/gt_v7_truth_sites.tsv.gz in the v8 truth format
 # (classes as gt_truth_agtc_test_v6.R classify(): informative negative = both KO arms covered with CP lower
 # bound > 75% of NTC editing). Depletion is the t25 / t50 / t75 axis of every truth, so it is not swept here.

@@ -2,8 +2,7 @@
 # =============================================================================
 # gt_truth_agtc_test_v6.R   (2026-10-06)
 #
-# Test of strand-agnostic ground-truth definitions (HANDOFF 2026-10-05 evening, section 4-5;
-# GTDEF_panel_agtc_truth): T>C positives are gene-strand A-to-I seen in reversed-orientation
+# Test of strand-agnostic ground-truth definitions (GTDEF_panel_agtc_truth): T>C positives are gene-strand A-to-I seen in reversed-orientation
 # reads. The frozen v6 rules (FROZEN_RULES.tsv, gt_spectrum12_eval_v6.R) are applied to
 #   AG      RNA-strand A>G only (current v6 truth; must reproduce truth_sweep_classes exactly)
 #   AGTC    A>G or T>C per read orientation, keyed on chr:pos; where both orientations are

@@ -1,5 +1,5 @@
 #!/bin/bash
-# aorta_coord_bams.sh STAGE=dedup|merge   (user 2026-11-12)
+# aorta_coord_bams.sh STAGE=dedup|merge
 # Coordinate-deduplicated (MarkDuplicates) BAMs for the aorta Adar1KD mice, the knockdown units of a coordinate-built
 # truth (cross-truth test; the control units are the pipeline's own results_v8/<unit>/02_dedup/<unit>_rmDup.bam).
 # Mirrors the pipeline path of the control mice: aorta_pipeline_bams.sh sample (STARsolo BAM, Myh11+ cells by CB,

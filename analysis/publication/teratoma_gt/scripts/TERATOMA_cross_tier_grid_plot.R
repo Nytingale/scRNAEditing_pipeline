@@ -3,8 +3,8 @@
 # TERATOMA_cross_tier_grid_plot.R
 #
 # Tile grid of every reported configuration x mismatch-window-filter state, ranked
-# by cross-tier F1 rank-sum (50% depletion). Local mismatch context (HANDOFF 2026-09-29
-# UPDATE-22, UPDATE-24): near other MM types excluded, i.e. sites with other mismatch
+# by cross-tier F1 rank-sum (50% depletion). Local mismatch context:
+# near other MM types excluded, i.e. sites with other mismatch
 # types nearby removed (step 5); + clustered, only sites with other candidate sites nearby
 # kept (step 6, the benchmark call set). No-filter rows (step 4) are not shown
 # (GRID_WINDOW_STATES). Ranks are over all rows of a tier.
@@ -13,7 +13,7 @@
 # Pre-window-column version: ../_superseded/window_column_2026-09-30/scripts/
 #
 # Usage: Rscript TERATOMA_cross_tier_grid_plot.R [DATASET]
-# Alternative truth (HANDOFF UPDATE-25): GRID_SCORING_TSV=<gt_tier_scoring-format table>
+# Alternative truth: GRID_SCORING_TSV=<gt_tier_scoring-format table>
 #   GRID_STEM=<figure stem> GRID_TITLE_SUFFIX=<text> draws the same grid from that table.
 # =============================================================================
 

@@ -29,8 +29,7 @@
 # arms". That couples the yardstick to the thing being measured, and it has
 # three consequences the v3 definition cannot live with:
 #   * truth is re-derived per tier, so a cell-type tier must establish its own
-#     reproducibility -- impossible, because per-celltype BAMs pool T1-T4
-#     (HANDOFF_2026-09-16_pm §4c objection 1);
+#     reproducibility -- impossible, because per-celltype BAMs pool T1-T4;
 #   * a site's label can differ between tiers, so tier precisions are not
 #     comparable and §4c had to recommend never printing them side by side;
 #   * it silently inherits whatever site list the pileups were built at -- the

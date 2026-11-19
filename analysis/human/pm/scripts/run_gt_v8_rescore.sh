@@ -1,6 +1,6 @@
 #!/bin/bash
 # run_gt_v8_rescore.sh   (2026-10-13)
-# v8 rescoring with per-unit recall denominators (user 2026-10-13), written into gt_eval_v8/.
+# v8 rescoring with per-unit recall denominators, written into gt_eval_v8/.
 #   tasks 1-12   KO truth (gt_score_v7.R, GT_UNIT_COV = gt_eval_v8/unit_cov/ko_truth_unit_cov.tsv.gz),
 #                state x tier -> gt_eval_v8/scoring/<state>/<tier>/
 #   tasks 13-16  REDIportal (gt_score_rediportal_v8.R: per-truth universe, per-unit denominator),
@@ -25,8 +25,7 @@ PM=$B/human/pm
 V8=$PM/gt_eval_v8
 RS=${CONDA_ENVS:-/opt/conda/envs}/scRNAEditing/bin/Rscript
 cd "$B"
-# cell-type tier: the cell types with >= 20 truth sites (>= 10 reads) under all nine truths (user 2026-10-13;
-# unit_cov/celltype_covered_positives.tsv, TERATOMA_v8_density_celltype_truth_sites); -v GT_UNIT_KEEP= uses all 23
+# cell-type tier: the cell types with >= 20 truth sites (>= 10 reads) under all nine truths (unit_cov/celltype_covered_positives.tsv, TERATOMA_v8_density_celltype_truth_sites); -v GT_UNIT_KEEP= uses all 23
 export GT_UNIT_KEEP=${GT_UNIT_KEEP-$V8/unit_cov/celltype_keep_min20.txt}
 # -v GT_UNIT_RULE=gate SC=$V8/scoring_pw RD=$V8/rediportal_pw: power-gated positives need unit coverage x merged NTC
 # editing level >= 3 (gt_score_v7.R); depth-gated and REDIportal keep >= 10 reads

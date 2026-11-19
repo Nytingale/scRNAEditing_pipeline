@@ -4,7 +4,7 @@
 # Every method configuration scored twice against the v6 sweep truth: on its final
 # call set (after the mismatch-window filters, the benchmark call set) and on the
 # pre-window call set (step 4: after the coverage / editing filters, before the
-# variable-region and clustering windows). HANDOFF 2026-09-29 UPDATE-21.
+# variable-region and clustering windows).
 #
 # Inputs
 #   human/pm/gt_eval_v6/scoring/sweep_infneg/{unit_scores_real.tsv.gz,caller_best.tsv}
