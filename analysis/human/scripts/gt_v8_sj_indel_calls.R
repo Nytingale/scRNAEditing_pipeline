@@ -37,7 +37,7 @@ LAB <- c("0-5", "6-10", "11-20", "21-50", "51-100", "101-500", "> 500")
 COMP <- c(A = "T", C = "G", G = "C", T = "A")
 msg <- function(...) cat(format(Sys.time(), "%H:%M:%S"), ..., "\n")
 
-ranked <- unique(fread(file.path(V8, "state_summary/config_ranks.tsv"))[, c(COMBO, "config"), with = FALSE])
+ranked <- unique(fread(file.path(V8, Sys.getenv("STATE_SUMMARY", "state_summary_pwcov"), "config_ranks.tsv"))[, c(COMBO, "config"), with = FALSE])
 stopifnot(nrow(ranked) == 58L)
 fs <- list.files(RES, recursive = TRUE, full.names = TRUE, pattern = "_step5_nomm\\.tsv\\.gz$")
 meta <- data.table(f = fs)

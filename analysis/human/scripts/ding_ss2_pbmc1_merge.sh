@@ -5,7 +5,7 @@
 #   qsub human/scripts/ding_ss2_pbmc1_merge.sh
 #$ -S /bin/bash
 #$ -N ding_p1m
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/

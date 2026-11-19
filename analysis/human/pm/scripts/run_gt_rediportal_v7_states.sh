@@ -13,7 +13,7 @@
 # default of gt_score_rediportal_v6.R (GT_REDI_DROP_MULTI=0 keeps them).
 #$ -S /bin/bash
 #$ -N gt_redi_v7s
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/

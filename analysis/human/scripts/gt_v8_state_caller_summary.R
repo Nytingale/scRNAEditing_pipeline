@@ -10,7 +10,7 @@
 #   family_rho.tsv     state: Spearman's rho of KO-family vs REDIportal-family mean ranks
 # SCN=scoring_pwcov (headline): scoring_pwcov/, rediportal_pwcov/ -> state_summary_pwcov/
 suppressMessages(library(data.table))
-V8 <- file.path(Sys.getenv("SCRNA_DIR", "."), "human/pm/gt_eval_v8")
+V8 <- Sys.getenv("GT_V8_DIR", file.path(Sys.getenv("SCRNA_DIR", "."), "human/pm/gt_eval_v8"))   # GT_V8_DIR: gt_eval_v8_60 (58 + 2 Cellsnp-lite hybrid)
 SCN <- Sys.getenv("SCN", "scoring")
 SFX <- sub("^scoring", "", SCN)
 OUT <- file.path(V8, paste0("state_summary", SFX)); dir.create(OUT, showWarnings = FALSE)
@@ -22,7 +22,9 @@ TIER_MAP <- c(dataset = "arm", sample = "sample", celltype = "celltype")
 rank_state <- function(s) {
   ko <- fread(file.path(V8, SCN, s, "config_rank.tsv"))
   ko <- ko[, c(COMBO, "gate", "t", "overall_rank", "mean_f1"), with = FALSE][, truth := paste0(gate, "_", t)][, c("gate", "t") := NULL]
-  rd <- rbindlist(lapply(REDI, function(v) {
+  # states scored on the KO truths only (e.g. scoring_pwcov76/none) have no REDIportal scoring
+  has_redi <- dir.exists(file.path(V8, paste0("rediportal", SFX), paste0("scoring_", s)))
+  rd <- if (!has_redi) NULL else rbindlist(lapply(REDI, function(v) {
     x <- fread(file.path(V8, paste0("rediportal", SFX), paste0("scoring_", s), paste0("gt_tier_scoring_", v, ".tsv")))
     stopifnot(all(x$tier %in% names(TIER_MAP)))
     x[, f1_rank := frank(-f1, ties.method = "min"), by = tier]
@@ -36,8 +38,7 @@ rank_state <- function(s) {
   stopifnot(out[, uniqueN(config), by = truth][, all(V1 == V1[1])])
   out
 }
-rk <- rbindlist(lapply(STATES[file.exists(file.path(V8, SCN, STATES, "config_rank.tsv")) &
-                              dir.exists(file.path(V8, paste0("rediportal", SFX), paste0("scoring_", STATES)))], rank_state))
+rk <- rbindlist(lapply(STATES[file.exists(file.path(V8, SCN, STATES, "config_rank.tsv"))], rank_state))
 fwrite(rk, file.path(OUT, "config_ranks.tsv"), sep = "\t")
 
 rob <- rbind(rk[, .(best = min(overall_rank), worst = max(overall_rank), mean_rank = mean(overall_rank)), by = .(state, family, config, caller)],

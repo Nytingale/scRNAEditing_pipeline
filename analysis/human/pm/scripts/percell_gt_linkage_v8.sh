@@ -20,7 +20,7 @@ mamba activate scRNAEditing
 
 BASE="${SCRNA_DIR:-.}"
 PM="${BASE}/human/pm"
-OUT="${PM}/percell_gt_linkage_v8"
+OUT="${LINK_DIR:-${PM}/percell_gt_linkage_v8}"   # LINK_DIR: percell_gt_linkage_v9 = v9 KO positives (build_linkage_sites_v9.sh)
 SITES="${OUT}/linkage_sites.tsv"
 [ -s "$SITES" ] || { echo "missing $SITES" >&2; exit 1; }
 

@@ -6,7 +6,8 @@
 # Input : human/pm/percell_gt_linkage_v8/T*_NTC_ctrl.{span,cell}.tsv.gz
 # Output: human/pm/percell_gt_linkage_v8/linkage_cell_summary.tsv, linkage_cell_pooled.tsv
 suppressMessages(library(data.table))
-LDIR <- file.path(Sys.getenv("SCRNA_DIR", "."), "human/pm/percell_gt_linkage_v8")
+# LINK_DIR: percell_gt_linkage_v9 = v9 KO positives (build_linkage_sites_v9.sh)
+LDIR <- Sys.getenv("LINK_DIR", file.path(Sys.getenv("SCRNA_DIR", "."), "human/pm/percell_gt_linkage_v8"))
 PM <- dirname(LDIR)
 S <- paste0("T", 1:4, "_NTC_ctrl")
 s <- fread(file.path(LDIR, "linkage_sites.tsv"))
@@ -25,8 +26,11 @@ cl[, `:=`(gene_umis = fifelse(gene_snv_umis >= 1, site_umis, 0L),
 LEV <- c(read_linked_umis = "Same read", mol_linked_umis = "Same molecule", gene_umis = "Same cell and gene",
          mono_umis = "Same cell and gene, monoallelic", site_umis = "Site covered (any)")
 sets <- list(ko = s[ko_positive == 1, site], cand = s[candidate == 1, site])
-n_sites_set <- fread(file.path(LDIR, "linkage_summary.tsv"), integer64 = "double")[level == "arm" & count == "reads" & min_reads == 1,
-                                                            setNames(n_pairs, set)]
+# sites per set after removing PGP1 variant positions, as TERATOMA_v8_linkage_snp_source_data.R
+v <- fread(cmd = paste("zcat", file.path(PM, "pgp1_snps", "PGP1_hu43860C_hg38_snvs.vcf.gz"), "| grep -v '^##'"),
+           select = 1:2, col.names = c("chrom", "pos"))
+s_np <- copy(s)[, c("chrom", "pos") := tstrsplit(site, ":", fixed = TRUE)][, pos := as.integer(pos)][!v, on = .(chrom, pos)]
+n_sites_set <- c(ko = s_np[ko_positive == 1, .N], cand = s_np[candidate == 1, .N])
 res <- rbindlist(lapply(names(sets), function(k) {
   x <- cl[site %in% sets[[k]]]
   n_sites <- n_sites_set[[k]]

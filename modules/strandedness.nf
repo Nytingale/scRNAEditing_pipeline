@@ -16,6 +16,14 @@ process INFER_STRANDEDNESS {
     tuple val(meta), path("${meta.id}_strandedness.txt"), emit: report
 
     script:
+    def forced = (params.strandedness ?: 'auto').toString().trim().toLowerCase()
+    if (!(forced in ['auto', 'forward', 'reverse', 'unstranded']))
+        error "--strandedness must be auto, forward, reverse or unstranded (got '${params.strandedness}')"
+    // Appended to an existing line, so the default (auto) script and its cache are unchanged.
+    def override = forced == 'auto' ? '' :
+        "\n    echo \"Set by --strandedness: ${forced} (overrides inferred \$STRANDEDNESS)\" >> ${meta.id}_strandedness.txt" +
+        "\n    [ \"\$STRANDEDNESS\" = \"${forced}\" ] || echo \"WARNING: ${meta.id}: --strandedness ${forced} differs from RSeQC (\$STRANDEDNESS); using ${forced}\" >&2" +
+        "\n    STRANDEDNESS=\"${forced}\""
     """
     #!/bin/bash
     set -euo pipefail
@@ -46,7 +54,7 @@ process INFER_STRANDEDNESS {
     else
         STRANDEDNESS="reverse"
         REDITOOLS_S=2
-        JACUSA_STRAND="FR-FIRSTSTRAND"
+        JACUSA_STRAND="RF-FIRSTSTRAND"
     fi
 
     echo "=== Strandedness Report: ${meta.id} ===" > ${meta.id}_strandedness.txt
@@ -55,7 +63,7 @@ process INFER_STRANDEDNESS {
     echo "Difference: \$DIFF" >> ${meta.id}_strandedness.txt
     echo "Inferred: \$STRANDEDNESS" >> ${meta.id}_strandedness.txt
     echo "REDItools3 -s: \$REDITOOLS_S" >> ${meta.id}_strandedness.txt
-    echo "JACUSA2 strand: \$JACUSA_STRAND" >> ${meta.id}_strandedness.txt
+    echo "JACUSA2 strand: \$JACUSA_STRAND" >> ${meta.id}_strandedness.txt${override}
 
     export STRANDEDNESS
     """

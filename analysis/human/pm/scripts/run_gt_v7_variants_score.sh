@@ -12,7 +12,7 @@
 #   qsub -t 1-12 [-v SC_OUT=<dir>] human/pm/scripts/run_gt_v7_variants_score.sh
 #$ -S /bin/bash
 #$ -N gt_v7var_sc
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/

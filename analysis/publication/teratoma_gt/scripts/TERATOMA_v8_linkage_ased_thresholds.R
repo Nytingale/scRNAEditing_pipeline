@@ -18,7 +18,7 @@ teratoma_set_dataset("pm_gt")
 SCRIPT <- "publication/teratoma_gt/scripts/TERATOMA_v8_linkage_ased_thresholds.R"
 
 PM <- file.path(REPO_DIR, "human", "pm")
-LDIR <- file.path(PM, "percell_gt_linkage_v8")
+LDIR <- Sys.getenv("LINK_DIR", file.path(PM, "percell_gt_linkage_v8"))   # percell_gt_linkage_v9: v9 KO positives
 VCF <- file.path(PM, "pgp1_snps", "PGP1_hu43860C_hg38_snvs.vcf.gz")
 CELLS_F <- file.path(PM, "seurat_analysis", "ground_truth_cells_paper.tsv")
 SITES_F <- file.path(LDIR, "linkage_sites.tsv")

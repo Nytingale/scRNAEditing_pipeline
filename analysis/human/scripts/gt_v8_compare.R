@@ -6,7 +6,7 @@
 # (state, source_variant). Run gt_rank_v7.R on gt_eval_v8/scoring/<state> and gt_eval_v8/mask_compare/mismatch first.
 # =============================================================================
 suppressPackageStartupMessages(library(data.table))
-V8 = file.path(Sys.getenv("SCRNA_DIR", "."), "human/pm/gt_eval_v8")
+V8 = Sys.getenv("GT_V8_DIR", file.path(Sys.getenv("SCRNA_DIR", "."), "human/pm/gt_eval_v8"))   # GT_V8_DIR: gt_eval_v8_60 (58 + 2 Cellsnp-lite hybrid)
 # GT_V8_STATES: comma-separated subset (interim collation before every state is scored)
 SCN = Sys.getenv("SCN", "scoring"); SFX = sub("^scoring", "", SCN)   # SCN=scoring_pwcov: headline denominator; MC mask_compare_pwcov
 MC = Sys.getenv("MC", "mask_compare")

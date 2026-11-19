@@ -94,3 +94,64 @@ Paths outside the project are read from environment variables whose defaults poi
 | `SOFTWARE_DIR` | `/opt/software` | Cell Ranger 10.0.0 and SRA Toolkit 3.0.7 (not in the image; install separately) |
 
 The ground-truth pileups used samtools 1.20 (`gt_pileup` environment), while the pipeline itself uses samtools 1.23.1; both are in the image.
+
+### Rebuilding the ground truths
+
+Both ground truths are built from umi_tools BAMs deduplicated with `--random-seed 8787` (the pipeline default `--umi_seed 8787`), so every step below is reproducible. Run from the project root; `<job>` is the job id printed by the previous step. Each step refuses to overwrite existing outputs.
+
+Teratoma (GSE248941):
+
+```bash
+# 1. umi_tools BAMs (20 teratoma units, then the 5 arms), placed where the truth and the callers read them
+qsub -t 1-20 -v STAGE=dedup human/pm/scripts/umi_seed_bams.sh
+qsub -t 1-5 -v STAGE=merge -hold_jid <dedup job> human/pm/scripts/umi_seed_bams.sh
+STAGE=place bash human/pm/scripts/umi_seed_bams.sh
+# 2. cell-type BAMs from them
+PLANS=umi LAUNCH=0 bash human/pm/scripts/tso_rerun_celltype.sh
+# 3. inputs that do not depend on the BAMs (once): site regions and dbSNP BED
+bash human/pm/scripts/run_gt_truth_rebuild_v6.sh init; qsub human/pm/scripts/run_gt_truth_rebuild_v6.sh prep
+# 4. 12-type scan and pileups, v8 truth, robustness  -> gt_eval_v6/spectrum12, gt_eval_v7, gt_eval_v8/{truth,robustness}
+bash human/pm/scripts/run_gt_truth_tso.sh                       # prints the job ids; <copy job> = the copy stage
+# 5. REDIportal universe and pileups, unit coverage, cell-type tier -> gt_eval_v8/unit_cov/celltype_keep_pwcov.txt
+bash human/pm/scripts/tso_rerun_score.sh inputs <copy job>
+# 6. v9 truth (A>G and T>C in read orientation) and its unit coverage -> gt_eval_v9/truth, gt_eval_v9/unit_cov
+qsub -v STAGE=truth -l h_vmem=32G -hold_jid <truth job of step 4> human/pm/scripts/gt_v9_build.sh
+qsub -v STAGE=ucov -t 1-56 -l h_vmem=4G -hold_jid <v9 truth job> human/pm/scripts/gt_v9_build.sh
+qsub -v STAGE=collect -l h_vmem=16G -hold_jid <v9 ucov job>,<unit_cov collect job of step 5> human/pm/scripts/gt_v9_build.sh
+# 7. REDIportal membership of the 12-type gate sites (informative-negative figure) -> gt_eval_v6/spectrum12/<eval dir>/
+for e in eval eval_depth; do qsub -hold_jid <eval job of step 4> human/pm/scripts/truth12_rediportal_overlap.sh $e; done
+```
+
+umi_tools caller runs on the seeded BAMs (umi_tools configurations only; results copied into the published trees):
+
+```bash
+for t in arm sample celltype; do qsub -v TIER=$t,UMI=1 human/pm/scripts/run_pipeline_pm_gt_v8.sh; done
+qsub -v UMI=1 mouse/aorta_gse255661/scripts/run_pipeline_aorta_v8.sh
+```
+
+Aorta (GSE255661):
+
+```bash
+STAGE=dedup qsub -t 1-6 mouse/aorta_gse255661/scripts/aorta_truth_dedup.sh          # -> truth/bams/
+STAGE=merge qsub -t 1-2 -hold_jid <dedup job> mouse/aorta_gse255661/scripts/aorta_truth_dedup.sh
+bash mouse/aorta_gse255661/scripts/aorta_truth_spectrum12.sh submit                  # SNP BED, scan, pileups
+qsub -N aor12_eval -l h_vmem=96G -hold_jid <pile job> mouse/aorta_gse255661/scripts/aorta_truth_spectrum12.sh eval
+qsub -v STAGE=truth -hold_jid <eval job> mouse/aorta_gse255661/scripts/aorta_v9_build.sh   # -> truth/eval_v9/excluded/
+```
+
+Mismatch spectrum of every ground truth (headline and the read-set variants of `human/pm/scripts/umi_seed_reps.sh`):
+
+```bash
+Rscript publication/gt_definition/scripts/GTDEF_truth_spectrum12_source_data.R
+Rscript publication/gt_definition/scripts/GTDEF_truth_spectrum12_plot.R
+```
+
+Version labels in folder names:
+
+| Label | Meaning |
+|---|---|
+| `gt_eval_v6` | frozen thresholds (`FROZEN_RULES.tsv`), 12-type scan and pileups, REDIportal pileups |
+| `gt_eval_v7` | truth variants (region mask, removal of sites near other mismatch types, PGP1 SNV positions) |
+| `gt_eval_v8` | A>G truth, unit coverage, cell-type tier, robustness |
+| `gt_eval_v9` | headline truth: A>G and T>C in read orientation, scored with A-to-G calls only |
+| `_v6` in BAM folders | TSO-clipped BAMs of the October rebuild (`02_gt_bams_umi_v6`: umi_tools, seed 8787) |

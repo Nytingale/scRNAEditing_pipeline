@@ -6,7 +6,7 @@
 # Output: human/dl/depmap_results_exADAR/, publication/lungTME/figures/dl/LUNGTME_panel_depmap_adar_isg_exADAR.svg
 #$ -S /bin/bash
 #$ -N depmap_exADAR
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/

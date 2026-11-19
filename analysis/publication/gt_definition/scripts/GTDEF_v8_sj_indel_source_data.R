@@ -16,7 +16,8 @@ source(file.path(REPO_DIR, "plotting", "source_data_io.R"))
 gtdef_set_dataset("pm_gt")
 STEM <- "GTDEF_v8_sj_indel"
 
-D <- normalizePath(file.path(dirname(dirname(V8_SUPPORT)), "indel_sj"))
+# SJ_INDEL_DIR: human/pm/gt_eval_v9/indel_sj = v9 truth, seed-8787 merged NTC indels
+D <- normalizePath(Sys.getenv("SJ_INDEL_DIR", file.path(dirname(dirname(V8_SUPPORT)), "indel_sj")))
 F_NT <- file.path(D, "truth_distance_nt.tsv")
 stopifnot(file.exists(F_NT))
 D_LEV <- c(as.character(0:10), "> 10")

@@ -12,9 +12,16 @@ def getBarcodeCore(platform) {
         'seqwell': 20,  // 12bp CB + 8bp UMI
         'dronc':   20,  // 12bp CB + 8bp UMI
         'sciseq':  18,  // 10bp CB + 8bp UMI
+        'sciseq_well': 26,  // 8bp UMI + 8bp well tag + 10bp RT barcode
         'indrop':  14,  // 8bp CB + 6bp UMI
     ]
     lengths.getOrDefault(platform, 0)
+}
+
+// Shortest barcode read accepted. 10x 3' v3 runs are sometimes sequenced with a 26-nt read 1 (CB 16 + 10 of the 12
+// UMI bases); STARSOLO_ALIGN then sets the UMI length from the read.
+def getBarcodeMinLen(platform) {
+    platform == '10xv3' ? 26 : getBarcodeCore(platform)
 }
 
 
@@ -32,6 +39,7 @@ process VALIDATE_FASTQ_READS {
     script:
     def platform = meta.platform
     def bc_core = getBarcodeCore(platform)
+    def bc_min  = getBarcodeMinLen(platform)
     def check_n = 20
 
     if (platform == 'smartseq2') {
@@ -114,11 +122,12 @@ process VALIDATE_FASTQ_READS {
             fi
         fi
 
-        # Validate barcode length >= core length
         BC_LEN=\$(nf_head.sh 2 zcat "\$BARCODE_FILE" | tail -1 | tr -d '\\n' | wc -c)
-        if [ "\$BC_LEN" -lt "\$BC_CORE" ]; then
-            echo "ERROR: Barcode read length (\${BC_LEN}bp) < expected core (\${BC_CORE}bp) for ${platform}" >&2
+        if [ "\$BC_LEN" -lt ${bc_min} ]; then
+            echo "ERROR: Barcode read length (\${BC_LEN}bp) < minimum (${bc_min}bp) for ${platform}" >&2
             exit 1
+        elif [ "\$BC_LEN" -lt "\$BC_CORE" ]; then
+            echo "[VALIDATE] WARNING: barcode read is \${BC_LEN}bp, shorter than the ${platform} core (\${BC_CORE}bp); the UMI is truncated to \$((BC_LEN - 16))bp" >&2
         fi
 
         ln -s "\$BARCODE_FILE" validated_barcode.fastq.gz

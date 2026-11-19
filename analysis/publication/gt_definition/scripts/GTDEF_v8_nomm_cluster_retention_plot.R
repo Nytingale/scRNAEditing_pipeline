@@ -1,10 +1,10 @@
 #!/usr/bin/env Rscript
 # ============================================================================
 # GTDEF_v8_nomm_cluster_retention_plot.R   (2026-10-18; draws from source data only since 2026-10-25)
-# Response figure 8 (R2 major 3): does the nearby-mismatch pass discard hyper-edited clusters?
-#   a  A-to-G vs the other 11 mismatch types kept by each pass, alone and together
-#   b  KO-responsive A-to-G sites kept by "remove if near other MM types", by the number of other A-to-G sites
-#      within 200 nt; facets gate x t
+# Response figure 8 (R2 major 3): does the discordant-mismatch filter (window 1) discard hyper-edited clusters?
+#   a  A-to-G vs the other 11 mismatch types kept by each filter (window 2 = clustered-sites filter), alone and together
+#   b  KO-responsive A-to-G sites kept by the discordant-mismatch filter, by the number of other A-to-G sites
+#      within the truth w1 of the gate (nomm_w1_grid.tsv); facets gate x t
 # Input : source_data/pm_gt/GTDEF_v8_nomm_cluster_retention.{a_bins,b_kept}.tsv
 #         (GTDEF_v8_nomm_cluster_retention_source_data.R)
 # Output: figures/pm_gt/GTDEF_v8_nomm_cluster_retention.svg
@@ -17,13 +17,19 @@ STEM <- "GTDEF_v8_nomm_cluster_retention"
 
 b <- read_part(STEM, "a_bins")
 m <- read_part(STEM, "b_kept")
+levels(m$st) <- c("No local\nmismatch filters", "+ Discordant-\nmismatch filter", "+ Clustered-\nsites filter",
+                  "+ Both filters")[match(levels(m$st), c("No local\ncontext filters", "+ Remove if near\nother MM types",
+                                                          "+ Clustered", "+ Remove if near\nother MM types\n+ Clustered"))]
+stopifnot(!anyNA(levels(m$st)))
 BS <- 13
+GT_V9 <- Sys.getenv("GT_V9") == "1"   # v9 truth labels (A-to-I = A-to-G + T-to-C)
 
 pa <- ggplot(b, aes(clf, pct)) +
   geom_col(width = 0.5, fill = "#FDAE6B", colour = "grey20", linewidth = 0.2) +
   facet_grid(g ~ tl) +
   scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 25), expand = expansion(mult = c(0, 0.02))) +
-  labs(x = "Other A-to-G sites within \u00b1 200 nt", y = "KO-responsive A-to-G sites kept (%)", tag = "a") +
+  labs(x = if (GT_V9) "Other A-to-G and T-to-C sites within the window (row label)" else "Other A-to-G sites within the window (row label)",
+       y = if (GT_V9) "KO-responsive A-to-G and\nT-to-C sites kept (%)" else "KO-responsive A-to-G sites kept (%)", tag = "a") +
   theme_manuscript(base_size = BS, facets = TRUE) + grid_y
 
 cmap_cls <- setNames(c(cmap_varType[["AG"]], cmap_varType[["AC"]]), levels(m$cls))

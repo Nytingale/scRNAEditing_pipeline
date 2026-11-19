@@ -9,12 +9,14 @@
 suppressPackageStartupMessages(library(data.table))
 PM <- file.path(Sys.getenv("SCRNA_DIR", "."), "human/pm")
 V8 <- file.path(PM, "gt_eval_v8")
+# pooled scoring set: REPL_SCN=scoring_pwcov (headline, default) -> scoring_pwcov/, rediportal_pwcov/; scoring -> scoring/, rediportal/
+SCN <- Sys.getenv("REPL_SCN", "scoring_pwcov"); RDN <- sub("^scoring", "rediportal", SCN)
 R <- file.path(V8, "replicates"); O <- file.path(R, "summary"); dir.create(O, showWarnings = FALSE)
 STRAT <- c(pooled = "Pooled", k2 = ">= 2 teratomas", k3 = ">= 3 teratomas", k4 = "All 4 teratomas",
            jacusa2rep = "JACUSA2 replicate-aware")
 RE <- "_step5_nomm\\.tsv\\.gz$"
-redi_dir <- function(s) if (s == "pooled") file.path(V8, "rediportal", "scoring_mismatch") else file.path(R, "scoring", paste0("rediportal_", s))
-ko_dir <- function(s) if (s == "pooled") file.path(V8, "scoring", "mismatch", "arm") else file.path(R, "scoring", paste0("ko_", s))
+redi_dir <- function(s) if (s == "pooled") file.path(V8, RDN, "scoring_mismatch") else file.path(R, "scoring", paste0("rediportal_", s))
+ko_dir <- function(s) if (s == "pooled") file.path(V8, SCN, "mismatch", "arm") else file.path(R, "scoring", paste0("ko_", s))
 res_dir <- function(s) if (s == "pooled") file.path(PM, "results_gt_v8") else file.path(R, paste0("results_", s, "_arm"))
 
 redi <- rbindlist(lapply(names(STRAT), function(s)

@@ -110,6 +110,25 @@ if [ -s "$FINAL_BAM" ] && samtools quickcheck "$FINAL_BAM" 2>/dev/null; then
     exit 0
 fi
 
+# TSO_TRIM=1: template-switch oligo removed from the 5' end of both mates first (as nextflow CUTADAPT_TSO; pilot
+# tso_trim_pilot.sh). The trimmed pair is kept in TRIMDIR and reused by the WASP re-alignment of the same cell.
+if [ "${TSO_TRIM:-0}" = "1" ]; then
+    TSO=AAGCAGTGGTATCAACGCAGAGTACATGGG
+    TRIMDIR="${TRIMDIR:-${SCRNA_DIR:-.}/human/jzlss2/fastq_tsotrim}"
+    mkdir -p "$TRIMDIR"
+    T1="$TRIMDIR/${SAMPLE}_tso_R1.fastq.gz"; T2="$TRIMDIR/${SAMPLE}_tso_R2.fastq.gz"
+    if [ ! -s "$TRIMDIR/${SAMPLE}_cutadapt_tso.json" ]; then
+        ${CONDA_ENVS:-/opt/conda/envs}/cutadapt/bin/cutadapt \
+            -g "${TSO};min_overlap=5" -G "${TSO};min_overlap=5" --minimum-length 20 --pair-filter any --cores "$NTHREADS" \
+            --json "$TRIMDIR/${SAMPLE}_cutadapt_tso.json.tmp" -o "$T1.tmp.fastq.gz" -p "$T2.tmp.fastq.gz" "$R1" "$R2" \
+            > "$TRIMDIR/${SAMPLE}_cutadapt_tso.log"
+        mv "$T1.tmp.fastq.gz" "$T1"; mv "$T2.tmp.fastq.gz" "$T2"
+        mv "$TRIMDIR/${SAMPLE}_cutadapt_tso.json.tmp" "$TRIMDIR/${SAMPLE}_cutadapt_tso.json"
+    fi
+    R1="$T1"; R2="$T2"
+    echo "    TSO-trimmed reads: $R1 $R2"
+fi
+
 echo "=== $(date) === Aligning $SAMPLE (Smart-seq2, single cell) ==="
 [ -n "$WASP_VCF" ] && echo "    WASP VCF: $WASP_VCF"
 

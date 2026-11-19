@@ -15,7 +15,7 @@
 #   n=$(( ($(wc -l < gt_eval_v8/mmonly/manifest.tsv) - 1 + 1) / 2 )); qsub -t 1-$n -tc 400 -v CHUNK=2 mmonly_rerun_v8.sh
 #$ -S /bin/bash
 #$ -N mmonly_v8
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/

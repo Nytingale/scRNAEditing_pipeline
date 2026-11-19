@@ -6,7 +6,7 @@
 # Usage  : qsub human/pm/scripts/gt_robustness_v8.sh
 #$ -cwd
 #$ -N gt_robust_v8
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -j y
 #$ -pe threaded 1

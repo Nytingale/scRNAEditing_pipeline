@@ -6,7 +6,7 @@
 #   qsub -hold_jid redi_pileup after_rediportal_pileup_v6.sh
 #$ -S /bin/bash
 #$ -N after_redi
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/

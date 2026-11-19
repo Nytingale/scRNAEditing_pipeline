@@ -48,6 +48,14 @@ SWEEP_CLASSES = if (COVER_GATE %in% c("expected", "depth"))
             "truth_sweep_classes.tsv.gz") else NA_character_
 dir.create(OUT, showWarnings = FALSE)
 msg = function(...) cat(format(Sys.time(), "%H:%M:%S"), " ", ..., "\n", sep = "")
+# The parity references are earlier builds (run_gt_truth_tso.sh setup links them when present); a build without
+# them skips the comparison and writes the same truth tables.
+if (!is.na(SWEEP_CLASSES) && !file.exists(SWEEP_CLASSES)) {
+  msg("no ", SWEEP_CLASSES, ": sweep-class parity skipped"); SWEEP_CLASSES = NA_character_
+}
+V6_TRUTH = file.path(V6, "truth", "gt_truth_sites.tsv.gz")
+HAS_V6_TRUTH = file.exists(V6_TRUTH)
+if (!HAS_V6_TRUTH) msg("no ", V6_TRUTH, ": v6 truth parity skipped")
 
 fr = fread(file.path(V6, "FROZEN_RULES.tsv"))
 P = setNames(fr$value, fr$parameter)
@@ -151,8 +159,8 @@ for (ti in seq_len(nrow(TYPES))) {
                                               n_shared = length(intersect(el, mg)))
       }
     }
-    if (COVER_GATE == "expected" && ty == "AG" && abs(d - 0.5) < 1e-9) {
-      v6 = fread(cmd = paste("gzip -cd", shQuote(file.path(V6, "truth", "gt_truth_sites.tsv.gz"))),
+    if (COVER_GATE == "expected" && HAS_V6_TRUTH && ty == "AG" && abs(d - 0.5) < 1e-9) {
+      v6 = fread(cmd = paste("gzip -cd", shQuote(V6_TRUTH)),
                  select = c("site", "class"))[class == "TRUE", site]
       mine = paste0(cd$chr, ":", cd$pos)[gate & dep]
       parity = data.table(n_v6 = length(v6), n_spectrum12 = length(mine), n_shared = length(intersect(v6, mine)),
@@ -187,6 +195,6 @@ fwrite(pc, file.path(OUT, "parity_AG_sweep_classes.tsv"), sep = "\t")
 print(pc)
 if (!is.na(SWEEP_CLASSES) && (nrow(pc) != 4 || any(pc$n_sweep != pc$n_spectrum12 | pc$n_sweep != pc$n_shared)))
   msg("WARNING: AG classes do not reproduce ", SWEEP_CLASSES, "; see parity_AG_sweep_classes.tsv")
-if (COVER_GATE == "expected" && (is.null(parity) || parity$v6_only > 0 || parity$spectrum12_only > 0))
+if (COVER_GATE == "expected" && HAS_V6_TRUTH && (is.null(parity) || parity$v6_only > 0 || parity$spectrum12_only > 0))
   msg("WARNING: AG at d = 0.50 does not reproduce the v6 truth set exactly; see parity_AG_d050.tsv")
 msg("done")

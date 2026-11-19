@@ -14,13 +14,14 @@
 # Call sets: the scored state (default mismatch = results_gt{,_persample,_celltype}_v8/*_step5_nomm), all
 # before the 100%-editing removal (downstream_filter.R step 7), so homozygous sites are not removed by it.
 # Usage : Rscript gt_score_germline_v8.R <tier> [results_dir] [out_dir] [call_regex]
+# GT_GERM_DIR (default gt_eval_v8/germline): germline_sites.tsv.gz, unit_cov/ and the default output root.
 # Output: <out_dir>/germline_unit_scores.tsv, germline_scores.tsv (config x tier)
 # =============================================================================
 suppressPackageStartupMessages(library(data.table))
 args <- commandArgs(trailingOnly = TRUE)
 TIER <- args[1]
 PM <- file.path(Sys.getenv("SCRNA_DIR", "."), "human/pm")
-G <- file.path(PM, "gt_eval_v8", "germline")
+G <- Sys.getenv("GT_GERM_DIR", file.path(PM, "gt_eval_v8", "germline"))
 UNIT_RE <- list(arm = "^NTC_ctrl$", sample = "^T[0-9]+_NTC_ctrl$", celltype = "^NTC_ctrl__")
 stopifnot(TIER %in% names(UNIT_RE))
 RES <- if (length(args) >= 2) args[2] else file.path(PM, c(arm = "results_gt_v8", sample = "results_gt_persample_v8", celltype = "results_gt_celltype_v8")[[TIER]])

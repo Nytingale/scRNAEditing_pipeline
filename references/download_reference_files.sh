@@ -4,6 +4,7 @@
 #   <dir>/SNP_files/<genome>_SNPs_GRanges.RData              --snp_file
 #     (human dbSNP156_common_GRanges.RData, mouse GRCm39_snps_GRanges.RData)
 #   <dir>/rediportal/REDIportal_hg38_v2.vcf.gz(.tbi), REDIportal_mm39.vcf   --rediportal
+#   <dir>/whitelists/*.txt    STARsolo barcode whitelists (--remap true); copy into nextflow/assets/whitelists/
 # Usage: bash download_reference_files.sh [dir]    (default: current directory)
 set -euo pipefail
 

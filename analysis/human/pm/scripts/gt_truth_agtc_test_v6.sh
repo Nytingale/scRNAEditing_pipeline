@@ -7,7 +7,7 @@
 # Usage  : qsub human/pm/scripts/gt_truth_agtc_test_v6.sh
 #$ -cwd
 #$ -N gt_agtc_test
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -j y
 #$ -pe threaded 1

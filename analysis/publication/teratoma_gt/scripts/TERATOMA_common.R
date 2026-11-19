@@ -43,6 +43,7 @@ source(file.path(REPO_DIR, "plotting", "gt_v8_paths.R"))
 # Per-dataset output tree, so a second dataset (Replogle) cannot overwrite the
 # first's tables and figures. See publication/README.md.
 teratoma_set_dataset <- function(ds = "pm_gt") {
+  ds <- Sys.getenv("TERATOMA_DATASET", ds)   # pm_gt60: GT_V8_DIR = gt_eval_v8_60
   DATASET    <<- ds
   FIG_DIR    <<- file.path(DELIV_DIR, "figures",     ds)
   SRC_DIR    <<- file.path(DELIV_DIR, "source_data", ds)
@@ -65,8 +66,9 @@ if (!file.exists(file.path(SCORING_DIR, "gt_tier_scoring.tsv"))) {
   SCORING_DIR <- file.path(GT_DIR, "true_def_v5_full")
   message("WARNING: v6 sweep scoring not found; using v5 (true_def_v5_full)")
 }
+# v8 scripts do not read the v5 / v6 tables (absent from the TSO-clipped human/pm); readers stop when they are used
 if (!file.exists(file.path(SCORING_DIR, "gt_tier_scoring.tsv")))
-  stop("missing ", file.path(SCORING_DIR, "gt_tier_scoring.tsv"))
+  message("WARNING: missing ", file.path(SCORING_DIR, "gt_tier_scoring.tsv"), " (v5 / v6 inputs only)")
 message("scoring dir: ", SCORING_DIR)
 
 # The same tables for the three mismatch-window-filter states (HANDOFF 2026-09-29 UPDATE-22):

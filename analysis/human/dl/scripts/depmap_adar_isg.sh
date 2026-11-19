@@ -4,7 +4,7 @@
 # lungTME DepMap figure. Output: human/dl/depmap_results/, publication/lungTME/figures/dl/
 #$ -S /bin/bash
 #$ -N depmap_adar
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/

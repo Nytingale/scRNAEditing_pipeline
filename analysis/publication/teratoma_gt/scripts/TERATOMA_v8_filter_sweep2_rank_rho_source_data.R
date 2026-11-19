@@ -11,8 +11,8 @@
 #   bottom  rank, under the moved filter, of the configuration ranked first under the main filters
 # The first sweep (DESIGN=1) and its preliminary layout are in
 # ../_superseded/pre_split_2026-10-25/scripts/TERATOMA_v8_filter_sweep_rank_plot.R.
-# Input : human/pm/gt_eval_v8/filter_sweep2/filter_sweep_compare_pwcov.tsv
-#         (human/pm/scripts/filter_sweep2_v8.sh -> human/scripts/gt_v8_filter_sweep_compare.R)
+# Input : human/pm/gt_eval_v9/filter_sweep76/filter_sweep_compare_pwcov.tsv (76 configurations, 2026-11-16)
+#         (human/pm/scripts/fsw76_v9.sh -> human/scripts/gt_v8_filter_sweep_compare.R)
 # Output: source_data/pm_gt/TERATOMA_v8_filter_sweep2_rank_rho_pwcov.{t50,all_t}.tsv
 #         (t50 is drawn by TERATOMA_v8_filter_sweep2_rank_rho_plot.R; all_t adds t = 25% and 75%)
 # ============================================================================
@@ -22,7 +22,8 @@ source(file.path(REPO_DIR, "plotting", "source_data_io.R"))
 teratoma_set_dataset("pm_gt")
 STEM <- "TERATOMA_v8_filter_sweep2_rank_rho_pwcov"
 
-SRC <- file.path(V8_DIR, "filter_sweep2", "filter_sweep_compare_pwcov.tsv")
+# FSW_SRC: 76-configuration sweep (human/pm/scripts/fsw76_v9.sh); the 58-configuration v8 sweep was V8_DIR/filter_sweep2
+SRC <- Sys.getenv("FSW_SRC", file.path(REPO_DIR, "human", "pm", "gt_eval_v9", "filter_sweep76", "filter_sweep_compare_pwcov.tsv"))
 stopifnot(file.exists(SRC))
 # setting -> filter axis, x position, x label; centre = the main pipeline value of that filter
 AX <- rbindlist(list(

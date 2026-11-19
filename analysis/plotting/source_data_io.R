@@ -64,18 +64,29 @@ write_sd <- function(x, dir, stem, part, gzip = FALSE) {
   invisible(f)
 }
 
+# SNP-removal labels written before 2026-11-08 said "dbSNP" (human only), then "Common SNPs" until 2026-11-12;
+# labels inside any text column (alone or inside a configuration label) are read as the current
+# label_snpSubtract wording, so legend and cmap_snp keys match whatever the table's age.
+relabel_legacy_snp <- function(v) {
+  for (old in c("dbSNP", "Common SNPs", "common SNPs")) {
+    v <- gsub(paste(old, "only"), "Database", v, fixed = TRUE)
+    v <- gsub(paste0(old, " + "), "Database + ", v, fixed = TRUE)
+  }
+  gsub("Database + per-sample blacklist", "Database + sample blacklist", v, fixed = TRUE)
+}
+
 read_sd <- function(dir, stem, part) {
   f <- sd_file(dir, stem, part)
   if (!file.exists(f)) stop("missing source data ", f)
   schema <- fread(sd_schema_file(dir, stem, part), sep = "\t", na.strings = "NA", colClasses = "character")
-  schema[, level := unesc_text(level)]
+  schema[, level := relabel_legacy_snp(unesc_text(level))]
   cols <- unique(schema$column)
   x <- fread(f, sep = "\t", na.strings = "NA", colClasses = list(character = cols), encoding = "UTF-8")
   stopifnot(identical(names(x), cols))
   for (n in cols) {
     s <- schema[column == n]
     v <- x[[n]]
-    if (s$type[1] %in% c("character", "factor")) v <- unesc_text(v)
+    if (s$type[1] %in% c("character", "factor")) v <- relabel_legacy_snp(unesc_text(v))
     v <- switch(s$type[1],
                 factor = factor(v, levels = s$level),
                 logical = as.logical(v),

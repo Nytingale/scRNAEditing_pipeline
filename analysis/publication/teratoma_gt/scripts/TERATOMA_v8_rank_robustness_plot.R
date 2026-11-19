@@ -18,6 +18,9 @@ STEM <- "TERATOMA_v8_rank_robustness"
 rk <- read_part(STEM, "ranks")
 all_cfg <- read_part(STEM, "configs")
 fam_rank <- read_part(STEM, "by_family")
+# SNP-removal labels follow label_snpSubtract, not the text frozen in the source data
+for (tb in list(all_cfg, fam_rank)) tb[, `SNP removal` := relabel(snp_subtract, label_snpSubtract)]
+stopifnot(all(c(all_cfg$`SNP removal`, fam_rank$`SNP removal`) %in% names(cmap_snp)))
 
 COMBO <- c("caller", "bam_type", "strand_mode", "snp_subtract")
 cmap_truth <- setNames(unname(V8_TRUTH_COLOURS[V8_TRUTH_IDS]), unname(V8_TRUTH_LABELS[V8_TRUTH_IDS]))
@@ -52,8 +55,7 @@ cf <- copy(all_cfg)
 p_dots_all <- ggplot(d, aes(overall_rank, y)) +
   geom_segment(data = cf, aes(x = best, xend = worst, y = y, yend = y), colour = "grey70", linewidth = 0.5) +
   geom_point(aes(colour = Truth), size = 4.6) +
-  geom_text(data = cf, aes(x = worst, y = y, label = worst), nudge_x = 0.9, hjust = 0, size = 7, fontface = "bold") +
-  scale_x_continuous(breaks = c(1, seq(5, 55, 5)), expand = expansion(mult = c(0.02, 0.06))) +
+  scale_x_continuous(breaks = c(1, seq(5, N, 5)), expand = expansion(mult = c(0.02, 0.06))) +
   scale_y_continuous(limits = Y_LIM_ALL, expand = c(0, 0)) +
   scale_colour_manual_cvd(values = cmap_truth, name = NULL) +
   guides(colour = guide_legend(ncol = 1, title = "Truth set", title.position = "top", override.aes = list(size = 5))) +
@@ -132,8 +134,7 @@ fam_panel <- function(nm) {
   p_dots <- ggplot(dd, aes(overall_rank, y)) +
     geom_segment(data = cfg, aes(x = best, xend = worst, y = y, yend = y), colour = "grey70", linewidth = 0.5) +
     geom_point(aes(colour = Truth), size = 4.6) +
-    geom_text(data = cfg, aes(x = worst, y = y, label = worst), nudge_x = 0.9, hjust = 0, size = 7, fontface = "bold") +
-    scale_x_continuous(breaks = c(1, seq(5, 55, 5)), limits = c(1, N + 2), expand = expansion(mult = c(0.02, 0.03))) +
+    scale_x_continuous(breaks = c(1, seq(5, N, 5)), limits = c(1, N + 2), expand = expansion(mult = c(0.02, 0.03))) +
     scale_y_continuous(limits = Y_LIM_ALL, expand = c(0, 0)) +
     scale_colour_manual_cvd(values = cmap_truth[levels(dd$Truth)], name = "Truth set") +
     guides(colour = "none") +

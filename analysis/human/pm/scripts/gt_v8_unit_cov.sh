@@ -14,7 +14,7 @@
 #   bash gt_v8_unit_cov.sh collect      # -> $OUT/ko_truth_unit_cov.tsv.gz (unit site coverage variant_cov)
 #$ -S /bin/bash
 #$ -N gt_v8_ucov
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/
@@ -54,6 +54,6 @@ BAM=$(sed -n "${SGE_TASK_ID}p" "$OUT/tasks.tsv")
 unit=$(basename "$BAM" .bam)
 o="$OUT/ko_truth/$unit.tsv.gz"
 samtools mpileup -B -q 30 -Q 30 -d 1000000 -l "$OUT/ko_truth_sites.bed" -f "$FASTA" "$BAM" 2>/dev/null \
-  | perl "$PERL" forward | cut -f1-5 | gzip > "$o.tmp"
+  | perl "$PERL" "${LIB:-forward}" | cut -f1-5 | gzip > "$o.tmp"
 mv "$o.tmp" "$o"
 echo "$unit $(zcat "$o" | tail -n +2 | wc -l) covered positions"

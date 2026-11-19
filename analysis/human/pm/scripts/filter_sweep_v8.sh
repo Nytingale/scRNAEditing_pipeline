@@ -18,7 +18,7 @@
 #   bash filter_sweep_v8.sh manifest; bash filter_sweep_v8.sh submit
 #$ -S /bin/bash
 #$ -N fsweep
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/
@@ -47,7 +47,7 @@ rows() {  # manifest rows for this array element
 }
 sweep_cmd() {  # <work_dir> <extra args>: the task's own command with the sweep script
   awk -v r="$SWEEP_R" -v x="$2" '
-    /^Rscript .*downstream_filter(_scallele)?\.R/ { sub(/[^ ]*downstream_filter(_scallele)?\.R/, r) }
+    /^Rscript .*downstream_filter(_v8|_scallele)?\.R/ { sub(/[^ ]*downstream_filter(_v8|_scallele)?\.R/, r) }
     { lines[++n] = $0; if ($0 ~ /[^[:space:]]/) last = n }
     END { sub(/[ \\]*$/, " \\", lines[last]); for (i = 1; i <= last; i++) print lines[i]; print "    " x }
   ' "$1/.command.sh"
@@ -79,13 +79,13 @@ submit)
   ;;
 
 manifest)
-  set -e
+  set -e; mkdir -p "$W/sub"
   keep=$(grep -v '^$' "$V8/unit_cov/celltype_keep_min20.txt" | paste -sd'|')
   for t in "${TIERS[@]}"; do
     awk -F'\t' 'NR==1{for(i=1;i<=NF;i++)h[$i]=i;next} $h["process"]~/^DOWNSTREAM_R/ {print $h["hash"]"\t"$h["peak_rss"]}' \
       "$PM/${PUB[$t]}/pipeline_trace.txt"
   done | awk -F'\t' '{v=$2; g=0; if (v~/GB/) g=v+0; else if (v~/MB/) g=v/1024; else if (v~/KB/) g=v/1048576; print $1"\t"g}' \
-    | sort -u > /tmp/fsweep_rss.tsv
+    | sort -u > "$W/sub/fsweep_rss.tsv"
   printf "id\ttier\twork_dir\tpublished_pre100\tcaller\tprefix\trel_dir\tmem\n" > "$W/manifest.tsv"
   awk -F'\t' -v keep="^(${keep})/" -v pm="$PM/" 'NR==FNR{r[$1]=$2; next} FNR==1{next}
     {rel = substr($3, length(pm) + 1); unit = rel; sub(/^[^/]+\//, "", unit)
@@ -97,7 +97,7 @@ manifest)
      d = rel; sub(/\/[^/]+$/, "", d)
      g = r[h] * 1.5 + 4; m = 8; while (m < g) m *= 2
      printf "%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n", ++n, $1, $2, $3, c[1], pre, d, m}' \
-    /tmp/fsweep_rss.tsv "$V8/nomm/manifest.tsv" >> "$W/manifest.tsv"
+    "$W/sub/fsweep_rss.tsv" "$V8/nomm/manifest.tsv" >> "$W/manifest.tsv"
   awk -F'\t' 'NR>1{n[$2]++; m[$8]++} END{for (k in n) print "tier", k, n[k]; for (k in m) print "mem", k"G", m[k]}' "$W/manifest.tsv"
   # apply rows: arm = one setting per row, other tiers = every setting of the task in one row
   printf "id\tsettings\tmem\n" > "$W/apply_manifest.tsv"

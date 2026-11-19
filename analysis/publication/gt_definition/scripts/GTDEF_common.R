@@ -57,8 +57,9 @@ source(file.path(REPO_DIR, "plotting", "gt_v8_paths.R"))
 # latent bug benchmark_grid had. See publication/README.md.
 gtdef_set_dataset <- function(ds = "pm_gt") {
   DATASET    <<- ds
-  FIG_DIR    <<- file.path(DELIV_DIR, "figures",     ds)
-  SRC_DIR    <<- file.path(DELIV_DIR, "source_data", ds)
+  out <- Sys.getenv("GTDEF_OUT_DATASET", ds)   # pm_gt60: outputs only; report / data inputs stay ds
+  FIG_DIR    <<- file.path(DELIV_DIR, "figures",     out)
+  SRC_DIR    <<- file.path(DELIV_DIR, "source_data", out)
   DATA_DIR   <<- file.path(DELIV_DIR, "data",        ds)
   REPORT_DIR <<- file.path(DELIV_DIR, "report",      ds)
   for (d in c(FIG_DIR, SRC_DIR, DATA_DIR, REPORT_DIR))

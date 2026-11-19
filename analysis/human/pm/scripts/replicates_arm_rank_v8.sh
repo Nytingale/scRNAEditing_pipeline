@@ -5,6 +5,7 @@
 set -euo pipefail
 Rscript human/scripts/replicates_arm_rank_v8.R
 Rscript human/scripts/replicates_ranksum_v8.R
+Rscript publication/teratoma_gt/scripts/TERATOMA_v8_replicates_arm_rank_source_data.R
 Rscript publication/teratoma_gt/scripts/TERATOMA_v8_replicates_arm_rank_plot.R
 REPL_SET=reach Rscript publication/teratoma_gt/scripts/TERATOMA_v8_replicates_arm_rank_plot.R
 convert -density 150 -background white -flatten publication/teratoma_gt/figures/pm_gt/TERATOMA_v8_replicates_arm_rank.svg \

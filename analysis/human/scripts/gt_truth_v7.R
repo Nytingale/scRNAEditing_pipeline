@@ -30,10 +30,13 @@ PM = file.path(B, "human/pm")
 AG = Sys.getenv("GT_AGTC_DIR", file.path(PM, "gt_eval_v6/agtc_test"))
 OUT = Sys.getenv("GT_V7_TRUTH_DIR", file.path(PM, "gt_eval_v7/truth")); dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 DS = c(t25 = 0.25, t50 = 0.50, t75 = 0.75)
+# GT_V7_VARIANT=AGTC (2026-11-07, strand-free truth impact check): read-orientation A>G and T>C positions
+VARIANT = Sys.getenv("GT_V7_VARIANT", "AG")
+stopifnot(VARIANT %in% c("AG", "AGTC"))
 
-x = fread(file.path(AG, "truth_sites.tsv.gz"))[variant == "AG" & eligible == TRUE & multiallelic == FALSE]
-stopifnot(x[, uniqueN(site), by = gate][, all(V1 == x[, .N, by = gate]$N)], all(x$type == "AG"),
-          all(x$strand %in% c("+", "-")))
+x = fread(file.path(AG, "truth_sites.tsv.gz"))[variant == VARIANT & eligible == TRUE & multiallelic == FALSE]
+stopifnot(x[, uniqueN(site), by = gate][, all(V1 == x[, .N, by = gate]$N)],
+          all(x$type %in% if (VARIANT == "AG") "AG" else c("AG", "TC")), all(x$strand %in% c("+", "-")))
 # RNA A>G on + reads or T>C on - reads sits on a genomic A; the other two on a genomic T
 x[, genomic_ref := fifelse((type == "AG") == (strand == "+"), "A", "T")]
 x[, a_to_i_strand := fifelse(genomic_ref == "A", "+", "-")]
@@ -66,7 +69,7 @@ cnt = rbindlist(lapply(names(DS), function(tn) {
          informative_negative = sum(get(cl) == "informative_negative"),
          unresolved = sum(get(cl) == "unresolved")), by = gate]
 }))
-ref = fread(file.path(AG, "truth_counts.tsv"))[variant == "AG" & multiallelic == "removed"]
+ref = fread(file.path(AG, "truth_counts.tsv"))[variant == VARIANT & multiallelic == "removed"]
 chk = merge(cnt, ref[, .(gate, eligible_ref = eligible, informative_negative_ref = informative_negative,
                          t25 = pos_t25, t50 = pos_t50, t75 = pos_t75)], by = "gate")
 chk[, positive_ref := fcase(t == "t25", t25, t == "t50", t50, t == "t75", t75)]

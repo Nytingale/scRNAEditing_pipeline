@@ -61,7 +61,7 @@ kr <- rd("GTDEF_step2_ko_response") %>%
 write_sd(kr, SRC_DIR, STEM, "d_ko_response")
 
 # e: truth sites per cell type, one value per truth set; cell types ordered by their minimum over the nine truths
-TSD <- file.path(REPO_DIR, "publication", "teratoma_gt", "source_data", "pm_gt")
+TSD <- file.path(REPO_DIR, "publication", "teratoma_gt", "source_data", Sys.getenv("TERATOMA_DATASET", "pm_gt"))
 DOT_SD <- file.path(TSD, sprintf("TERATOMA_v8_dot_celltype_truth_sites_min%d.source_data.tsv", V8_CT_MIN_SITES))
 dn <- fread(DOT_SD)
 stopifnot(setequal(dn$truth, V8_TRUTH_IDS), uniqueN(dn$unit) == 23,
@@ -78,7 +78,8 @@ stopifnot(all(ct_min[order(unit)]$kept == (seq_len(23) <= sum(ct_min$kept))))
 write_sd(dn, SRC_DIR, STEM, "e_celltype")
 
 # f-g: ranking under one-step threshold moves, t = 50%
-sw <- fread(file.path(TSD, "TERATOMA_v8_sweep_rank_rho.source_data.tsv"))[t == "t50"]
+TSD_SW <- file.path(REPO_DIR, "publication", "teratoma_gt", "source_data", Sys.getenv("TERATOMA_DATASET", "pm_gt"))
+sw <- fread(file.path(TSD_SW, "TERATOMA_v8_sweep_rank_rho.source_data.tsv"))[t == "t50"]
 SW_AX <- c(min_cov = "NTC coverage", min_edit_reads = "NTC edited reads", min_ctrl_edit = "NTC editing level",
            min_cov_teratoma = "Per-sample NTC coverage", rule = "Reproducibility across samples",
            ko_min_expected = "Expected edited KO reads (m)", ko_min_cov = "KO coverage")

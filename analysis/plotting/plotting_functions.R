@@ -793,10 +793,11 @@ label_strandMode <- c(
   caller     = "Caller's own strand"
 )
 
+# "Database" rather than "dbSNP": the common-SNP database is dbSNP for human but not for the other species
 label_snpSubtract <- c(
-  off = "dbSNP only",
-  on  = "dbSNP + sample blacklist",
-  na  = "dbSNP only"
+  off = "Database",
+  on  = "Database + sample blacklist",
+  na  = "Database"
 )
 
 # Apply a label map, passing through anything unmapped rather than turning it
@@ -831,6 +832,8 @@ cmap_proc <- c(
   "De-duplicated\n(coordinate)"  = "#487563",
   "De-duplicated (UMI)"          = "#76A892",
   "De-duplicated\n(UMI)"         = "#76A892",
+  "De-duplicated (umi_tools)"    = "#76A892",
+  "De-duplicated (UMI-aware MarkDuplicates)" = "#B3DCC8",
   "Recalibrated"                 = "#8055A6",
   "Recalibrated (Q20)"           = "#A47BBF",
   "Recalibrated (default)"       = "#C4A9D2"
@@ -843,10 +846,9 @@ cmap_strand <- c(
 )
 
 cmap_snp <- c(
-  "dbSNP only"                    = "#CCCCCC",
-  "dbSNP + sample blacklist"      = "#333333",
-  "dbSNP + per-sample blacklist"  = "#333333",
-  "dbSNP\n+ per-sample blacklist" = "#333333"
+  "Database"                         = "#CCCCCC",
+  "Database + sample blacklist"      = "#333333",
+  "Database\n+ sample blacklist"     = "#333333"
 )
 
 # Window filters (downstream steps 5-6): none = step 4; mismatch = step 5, sites with other
@@ -1348,4 +1350,13 @@ caller_script <- function() {
   f <- sub("^--file=", "", ca[grep("^--file=", ca)])
   if (length(f)) return(normalizePath(f[1], mustWork = FALSE))
   NA_character_
+}
+
+# Spearman's p value (asymptotic t approximation; ranks with ties) and its label under a rho label (2026-11-19)
+spearman_p <- function(x, y) suppressWarnings(cor.test(x, y, method = "spearman", exact = FALSE)$p.value)
+p_lab <- function(p) ifelse(p < 1e-300, "p < 1e-300", ifelse(p >= 0.001, sprintf("p = %.3f", p), sprintf("p = %.1e", p)))
+# the same p value from rho and n (asymptotic t approximation, as cor.test(method = "spearman", exact = FALSE))
+spearman_p_rho <- function(rho, n) {
+  t <- rho * sqrt((n - 2) / pmax(1 - rho^2, 0))
+  2 * pt(-abs(t), n - 2)
 }

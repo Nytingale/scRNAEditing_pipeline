@@ -92,7 +92,7 @@ save_figure(p, STEM, width = 9, height = 7, sources = IN, data = ret, grid = "y"
 SHORT_BAM <- c(sampleRmDup = "Dedup (coord.)", sampleUmiDup = "Dedup (UMI)", recal = "Recal",
                recalq20 = "Recal (Q20)", recaldefault = "Recal (default)")
 SHORT_STRAND <- c(annotation = "Annotation", hybrid = "Hybrid", caller = "Caller's own")
-SHORT_SNP <- c(off = "dbSNP", on = "dbSNP + blacklist")
+SHORT_SNP <- c(off = "Database", on = "Database + sample blacklist")
 ca <- cl[tier == "arm"]
 ca[, c("bam_type", "snp_subtract") := tstrsplit(config, "__", fixed = TRUE)[c(2, 4)]]
 ca[, label := paste(relabel(caller, label_caller), relabel(bam_type, SHORT_BAM),

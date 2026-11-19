@@ -13,13 +13,18 @@ suppressPackageStartupMessages(library(data.table))
 B <- Sys.getenv("SCRNA_DIR", ".")
 PM <- file.path(B, "human/pm")
 V8 <- file.path(PM, "gt_eval_v8")
-OUT <- file.path(V8, "indel_sj")
+# v9: GT_TRUTH=gt_eval_v9/truth/gt_v9_truth_sites.tsv.gz, SJ_INDEL_OUT=gt_eval_v9/indel_sj (indels/ from the
+# seed-8787 merged NTC BAM); v9 informative negatives = neg_source containing "infneg" (germline negatives excluded)
+OUT <- Sys.getenv("SJ_INDEL_OUT", file.path(V8, "indel_sj"))
 MIN_INDEL <- as.integer(Sys.getenv("MIN_INDEL", "3"))
 D_MAX <- 10L
 D_LAB <- c(as.character(0:D_MAX), paste0("> ", D_MAX))
 
-truth <- fread(file.path(V8, "truth/gt_v7_truth_sites.tsv.gz"), select = c("gate", "site", "chr", "pos", "class_t50"))
-truth <- truth[class_t50 %chin% c("positive", "informative_negative")]
+truth <- fread(Sys.getenv("GT_TRUTH", file.path(V8, "truth/gt_v7_truth_sites.tsv.gz")))
+if ("neg_source" %in% names(truth))
+  truth <- truth[class_t50 == "positive" | (class_t50 == "informative_negative" & grepl("infneg", neg_source))]
+truth <- truth[class_t50 %chin% c("positive", "informative_negative"), .(gate, site, chr, pos, class_t50)]
+print(truth[, .N, by = .(gate, class_t50)])
 
 nearest <- function(pts, q) {
   setkey(pts, chr, b)

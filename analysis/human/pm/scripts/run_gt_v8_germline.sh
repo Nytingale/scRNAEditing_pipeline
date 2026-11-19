@@ -5,7 +5,7 @@
 # gt_score_germline_v8.R per tier on the mismatch state (task 1-3 = arm, sample, celltype).
 #   HOLD=<gl_sites job> bash run_gt_v8_germline.sh submit
 #$ -S /bin/bash
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/
@@ -27,7 +27,7 @@ if [ "$STAGE" = "submit" ]; then
   j1=$(qsub -terse -N gl_setup ${HOLD:+-hold_jid $HOLD} -v STAGE=setup "$SELF")
   j2=$(qsub -terse -N gl_ucov -t 1-28 -hold_jid "$j1" -v "$V" "$UC" | cut -d. -f1)
   j3=$(qsub -terse -N gl_collect -hold_jid "$j2" -v STAGE=collect "$SELF")
-  j4=$(qsub -terse -N gl_score -t 1-3 -l h_vmem=48G -hold_jid "$j3" -v STAGE=score "$SELF" | cut -d. -f1)
+  j4=$(qsub -terse -N gl_score -t 1-3 -l h_vmem=48G -hold_jid "$j3" -v "STAGE=score,SCN=${SCN:-scoring},GT_UNIT_KEEP=${GT_UNIT_KEEP:-}" "$SELF" | cut -d. -f1)
   echo "setup $j1 | unit cov $j2 (1-28) | collect $j3 | score $j4 (1-3)"
   exit 0
 fi

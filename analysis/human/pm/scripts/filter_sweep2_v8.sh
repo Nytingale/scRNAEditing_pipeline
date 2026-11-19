@@ -19,7 +19,7 @@
 #   STAGE=manifest bash filter_sweep2_v8.sh; HOLD=<recall gather + r3floor swap ids> STAGE=submit bash filter_sweep2_v8.sh
 #$ -S /bin/bash
 #$ -N fsweep2
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/
@@ -51,7 +51,7 @@ rows() {  # manifest rows for this array element
 }
 sweep_cmd() {  # <work_dir> <extra args>: the task's own command with the sweep script
   awk -v r="$SWEEP_R" -v x="$2" '
-    /^Rscript .*downstream_filter(_scallele)?\.R/ { sub(/[^ ]*downstream_filter(_scallele)?\.R/, r) }
+    /^Rscript .*downstream_filter(_v8|_scallele)?\.R/ { sub(/[^ ]*downstream_filter(_v8|_scallele)?\.R/, r) }
     { lines[++n] = $0; if ($0 ~ /[^[:space:]]/) last = n }
     END { sub(/[ \\]*$/, " \\", lines[last]); for (i = 1; i <= last; i++) print lines[i]; print "    " x }
   ' "$1/.command.sh"
@@ -89,7 +89,10 @@ submit)
   done
   jc=$(qsub -terse -N fsw2_check -l h_vmem=4G -hold_jid "$ha" -v STAGE=check "$SELF")
   ns=$(( 3 * (${#SETTINGS[@]} + 1) )); K=$V8/unit_cov; out="union $hu | apply $ha | check $jc"
-  for v in "scoring_pwcov gate_cov celltype_keep_pwcov.txt" "scoring_pw gate celltype_keep_min20_pw.txt"; do
+  # SCORE_SETS=pwcov: the headline scoring only (Response Figure 6)
+  sets=("scoring_pwcov gate_cov celltype_keep_pwcov.txt" "scoring_pw gate celltype_keep_min20_pw.txt")
+  [ "${SCORE_SETS:-}" = pwcov ] && sets=("${sets[0]}")
+  for v in "${sets[@]}"; do
     read -r scn rule keep <<< "$v"
     js=$(qsub -terse -N fsw2_s_${scn#scoring_} -t 1-$ns -l h_vmem=48G -l h_rt=12:00:00 -hold_jid "$ha" \
            -v STAGE=score,SCN=$scn,GT_UNIT_RULE=$rule,GT_UNIT_KEEP=$K/$keep "$SELF" | cut -d. -f1)

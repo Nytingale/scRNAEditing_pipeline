@@ -1,0 +1,17 @@
+# Genome params file: every reference and annotation for one genome, given to the pipeline with
+#   nextflow run main.nf -params-file genome.yaml --input samplesheet.csv ...
+# Keys are pipeline parameters (README "Reference files"). Leave out a key when the genome has no such resource;
+# parameters given on the command line override this file. All files must use the same chromosome names.
+genome_fasta: /path/to/genome.fa                         # required; .fai (and .dict for GATK) beside it
+genome_gtf: /path/to/genes.gtf                           # required
+main_chroms: /path/to/main_chroms.txt                    # one chromosome per line
+snp_file: /path/to/snp_GRanges.RData                     # known SNPs (GRanges snp_gr) or BED
+strand_annots: /path/to/extended_annots.RData            # plus.annot / minus.annot (references/common/)
+alu_annots: /path/to/extended_annots.RData               # alu.plus.annot / alu.minus.annot (human only)
+rediportal: /path/to/REDIportal.vcf.gz                   # human / mouse
+known_sites_vcf: /path/to/known_sites.vcf.gz             # GATK BQSR; without it recal / recalq20 are skipped
+refseq_bed: /path/to/RefSeq.bed                          # BED12 for strandedness inference
+star_index: /path/to/stardb_<overhang>                   # --remap only; built from the FASTA + GTF if absent
+# mito_chr: NC_012920.1                                  # needed when the GTF names the mitochondrial chromosome
+#                                                          other than chrM, chrMT, MT, M, mitochondrion_genome or
+#                                                          *mito*: otherwise pct_mt is 0 and --qc_max_pct_mt does nothing

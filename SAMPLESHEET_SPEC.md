@@ -21,7 +21,7 @@ Rscript nextflow/bin/validate_samplesheet.R <samplesheet.csv> \
 | `bam` | yes | Aligned, coordinate-sorted BAM for that lane. A `.bai` must sit beside it. |
 | `celltype_annot` | yes | 2-column TSV, no header: `cell_key <TAB> celltype`. |
 | `called_barcodes` | yes | Cell keys passing QC. 1 or 2 columns; only the first is read. |
-| `platform` | yes | One of `10xv2`, `10xv3`, `celseq2`, `smartseq2`. Determines topology and whether UMIs exist. |
+| `platform` | yes | One of `10xv2`, `10xv3`, `celseq2`, `smartseq2`. Determines topology and whether UMIs exist. Set it from the barcode whitelist, not the read length: a 10x v3 library may have a 26-nt barcode read. |
 | `group` | no | Pooling unit for cell-type analysis — e.g. a CRISPR arm or treatment condition. Cell types are pooled across `sample_id`s **within** a group. Absent or blank means one group named `all`. |
 | `cell_id` | conditional | **Required for plate-based platforms**, where one BAM is one cell. Must match a key in `celltype_annot`. Ignored for barcoded platforms. |
 | `fastq_r1`, `fastq_r2` | no | Optional provenance; may be empty. |
@@ -58,9 +58,15 @@ is no `CB` tag.
 
 ## UMIs
 
-`smartseq2` has no `UB` tag, so `--dedup umi` is invalid for it; `dedup.nf`
-hard-errors rather than degrading. Only `none` and `coordinate` apply. Every
-other platform above carries UMIs.
+`smartseq2` has no `UB` tag, so `--dedup umi` and `--dedup umimd` (UMI-aware
+MarkDuplicates) are invalid for it; `dedup.nf` hard-errors rather than
+degrading. Only `none` and `coordinate` apply. Every other platform above
+carries UMIs.
+
+The pipeline also accepts optional prebuilt dedup BAMs per row: `rmdup_bam`
+(coordinate), `umidup_bam` (umi_tools) and `umimd_bam` (UMI-aware
+MarkDuplicates). Use them for samples whose BAM pools GEM wells without `@RG`
+tags, where barcodes collide across wells; the validator ignores them.
 
 ## Why `sample_id` is the dedup unit
 

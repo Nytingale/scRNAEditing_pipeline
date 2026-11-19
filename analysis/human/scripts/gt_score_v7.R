@@ -75,6 +75,11 @@ UNIT_RULE = Sys.getenv("GT_UNIT_RULE", "cov")
 MIN_EXP = as.numeric(Sys.getenv("GT_UNIT_MIN_EXP", "3"))
 EDIT_UNIT = Sys.getenv("GT_UNIT_EDIT_UNIT", "NTC_ctrl")
 stopifnot(UNIT_RULE %in% c("cov", "gate", "gate_cov"), UNIT_RULE == "cov" || nzchar(UNIT_COV))
+# GT_FP_RULE=ag (v9, 2026-11-07): FP = AG calls at informative negatives only; a non-AG call at a positive is a
+# miss, not an FP. Default `any`: FP = wrong calls at positives + any call at informative negatives.
+FP_RULE = Sys.getenv("GT_FP_RULE", "any")
+stopifnot(FP_RULE %in% c("any", "ag"))
+psites = unique(truth[class_t25 == "positive" | class_t50 == "positive" | class_t75 == "positive", site])
 
 units = grep(UNIT_RE[[TIER]], list.dirs(RES, recursive = FALSE, full.names = FALSE), value = TRUE)
 if (nzchar(Sys.getenv("GT_UNIT_KEEP")) && TIER == "celltype") {
@@ -126,7 +131,7 @@ if (nzchar(UNIT_COV)) {
   if (!all(units %chin% uc$unit)) stop("units missing from ", UNIT_COV, ": ", paste(setdiff(units, uc$unit), collapse = ", "))
   if (UNIT_RULE != "cov") {
     ed = uc[unit == EDIT_UNIT & coverage > 0, .(site, edit = variant_cov / coverage)]
-    if (!all(tsites %chin% ed$site)) stop(sum(!tsites %chin% ed$site), " truth sites without a ", EDIT_UNIT, " editing level")
+    if (!all(psites %chin% ed$site)) stop(sum(!psites %chin% ed$site), " positive sites without a ", EDIT_UNIT, " editing level")
     uc = merge(uc[unit %chin% units], ed, by = "site")
     ucov = rbindlist(lapply(GATES, function(g)
       uc[if (g != "expected") coverage >= MIN_COV
@@ -155,7 +160,7 @@ us = rbindlist(lapply(DS, function(tn) {
                     n_fp_wrong = sum(get(cl) == "positive" & any_wrong),
                     n_fp_wrong_tc = sum(get(cl) == "positive" & wrong_TC),
                     n_wrong_only = sum(get(cl) == "positive" & any_wrong & !any_correct),
-                    n_fp_neg = sum(get(cl) == "informative_negative"),
+                    n_fp_neg = sum(get(cl) == "informative_negative" & (FP_RULE == "any" | any_correct)),
                     n_unresolved = sum(get(cl) == "unresolved")), by = .(unit, config, gate)]
   s[, t := tn]
 }))
@@ -166,7 +171,7 @@ npl = melt(n_pos, id.vars = "gate", variable.name = "t", value.name = "n_pos")[,
 us = merge(us, npl, by = c("gate", "t"))
 us = merge(us, npu, by = c("unit", "gate", "t"), all.x = TRUE)
 us[is.na(n_pos_unit), n_pos_unit := 0L]
-us[, n_fp := n_fp_wrong + n_fp_neg]
+us[, n_fp := if (FP_RULE == "ag") n_fp_neg else n_fp_wrong + n_fp_neg]
 us[, `:=`(precision = fifelse(n_tp + n_fp > 0, n_tp / (n_tp + n_fp), NA_real_),
           recall = fifelse(n_pos_unit > 0, n_tp_cov / n_pos_unit, NA_real_))]
 us[, f1 := fifelse(is.na(recall), NA_real_,

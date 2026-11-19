@@ -25,7 +25,7 @@ STATE_RE <- c(none = "_step4_cov_edit_filtered\\.tsv\\.gz$", mismatch = "_step5_
 M_EXP <- 3; MIN_COV <- 10; T_DROP <- 0.5
 msg <- function(...) cat(format(Sys.time(), "%H:%M:%S"), ..., "\n")
 
-ranked <- unique(fread(file.path(V8, "state_summary/config_ranks.tsv"))[, c(COMBO, "config"), with = FALSE])
+ranked <- unique(fread(file.path(V8, Sys.getenv("STATE_SUMMARY", "state_summary_pwcov"), "config_ranks.tsv"))[, c(COMBO, "config"), with = FALSE])
 stopifnot(nrow(ranked) == 58L)
 
 # ---- call sets ----------------------------------------------------------------

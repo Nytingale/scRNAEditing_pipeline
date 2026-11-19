@@ -54,6 +54,23 @@ M_EXP = as.numeric(P[["ko_min_expected"]]); K = as.numeric(P[["min_edit_reads"]]
 E = as.numeric(P[["min_ctrl_edit"]]); TCOV = as.numeric(P[["min_cov_teratoma"]])
 stopifnot(P[["consistency_mode"]] == "evaluable", P[["snp_filter"]] == "excluded", P[["bq"]] == "30")
 MIN_COV_KO_DEPTH = 10
+MODE = "evaluable"
+# GT_RULE_SET=<param>=<value>[,...] (2026-11-13, v9 rank sensitivity; needs GT_TRUTH_ONLY=1): one threshold moved
+# from the frozen centre. min_cov, min_cov_teratoma, ko_min_expected, ko_min_cov_depth, min_edit_reads,
+# min_ctrl_edit, consistency_mode (evaluable | strict2: >= 2 teratomas | strict3: >= 3 teratomas)
+if (nzchar(Sys.getenv("GT_RULE_SET"))) {
+  stopifnot(TRUTH_ONLY)
+  for (kv in strsplit(strsplit(Sys.getenv("GT_RULE_SET"), ",", fixed = TRUE)[[1]], "=", fixed = TRUE)) {
+    v = kv[2]
+    switch(kv[1], min_cov = { MIN_COV = as.numeric(v) }, min_cov_teratoma = { TCOV = as.numeric(v) },
+           ko_min_expected = { M_EXP = as.numeric(v) }, ko_min_cov_depth = { MIN_COV_KO_DEPTH = as.numeric(v) },
+           min_edit_reads = { K = as.numeric(v) }, min_ctrl_edit = { E = as.numeric(v) },
+           consistency_mode = { stopifnot(v %in% c("evaluable", "strict2", "strict3")); MODE = v },
+           stop("GT_RULE_SET: unknown parameter ", kv[1]))
+  }
+  msg("GT_RULE_SET ", Sys.getenv("GT_RULE_SET"), ": min_cov ", MIN_COV, ", min_cov_teratoma ", TCOV, ", ko_min_expected ",
+      M_EXP, ", ko_min_cov_depth ", MIN_COV_KO_DEPTH, ", min_edit_reads ", K, ", min_ctrl_edit ", E, ", consistency ", MODE)
+}
 NEG_MAX_DEP = 0.25; CI_ALPHA = 0.05
 MIN_THIRD_READS = 3; MIN_THIRD_FRAC = 0.05
 DS = c(t25 = 0.25, t50 = 0.50, t75 = 0.75)
@@ -129,7 +146,8 @@ classify = function(S, gate_type) {
   ctrl_ed = ctrl$alt >= K & ctrl$edit >= E
   n_eval = Reduce(`+`, lapply(TT, function(t) S[[paste0(t, "_NTC_ctrl")]]$cov >= TCOV))
   n_pos = Reduce(`+`, lapply(TT, function(t) { x = S[[paste0(t, "_NTC_ctrl")]]; x$cov >= TCOV & x$alt >= K & x$edit >= E }))
-  gate = Reduce(`|`, cov_arm) & ctrl_ed & n_pos >= 2 & n_pos >= pmax(2, n_eval - 1)
+  cons = switch(MODE, evaluable = n_pos >= 2 & n_pos >= pmax(2, n_eval - 1), strict2 = n_pos >= 2, strict3 = n_pos >= 3)
+  gate = Reduce(`|`, cov_arm) & ctrl_ed & cons
   nd = lapply(seq_along(KO), function(i) { k = S[[paste0("merged_", KO[i])]]
     cov_arm[[i]] & cp_lower(k$alt, k$cov) > (1 - NEG_MAX_DEP) * ctrl$edit })
   o = data.table(eligible = gate, informative_negative = gate & nd[[1]] & nd[[2]], ntc_cov = ctrl$cov)

@@ -4,7 +4,7 @@
 # publication/gt_definition/scripts/GTDEF_common.R. Definition: human/pm/gt_eval_v8/README.md.
 # Requires REPO_DIR.
 # ============================================================================
-V8_DIR        <- file.path(REPO_DIR, "human", "pm", "gt_eval_v8")
+V8_DIR        <- Sys.getenv("GT_V8_DIR", file.path(REPO_DIR, "human", "pm", "gt_eval_v8"))   # gt_eval_v8_60: + 2 Cellsnp-lite hybrid
 V8_LABEL      <- "v8"
 V8_SRC_VARIANT <- "v7_nomm_pgp1"   # the gt_eval_v7 variant v8 was copied from
 V8_STATE      <- "mismatch"        # call state: nearby-mismatch pass only

@@ -13,7 +13,7 @@
 #   qsub -t 1-6 run_gt_split_score.sh ; then Rscript human/scripts/gt_split_compare.R
 #$ -S /bin/bash
 #$ -N gt_split_score
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/

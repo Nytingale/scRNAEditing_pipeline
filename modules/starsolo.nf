@@ -58,6 +58,14 @@ def getStarsoloParams(platform) {
         settings.soloUMIlen  = 8
         settings.whitelist   = 'None'
         settings.hasUMI      = true
+    } else if (platform == 'sciseq_well') {
+        // barcode read rebuilt as UMI 8 + PCR-well tag 8 + RT barcode 10 (cell = well x RT barcode)
+        settings.soloCBstart = 9
+        settings.soloCBlen   = 18
+        settings.soloUMIstart = 1
+        settings.soloUMIlen  = 8
+        settings.whitelist   = 'None'
+        settings.hasUMI      = true
     } else if (platform == 'indrop') {
         settings.soloCBstart = 1
         settings.soloCBlen   = 8
@@ -74,7 +82,7 @@ def getStarsoloParams(platform) {
         settings.whitelist   = 'None'
         settings.hasUMI      = false
     } else {
-        error "Unknown platform: ${platform}. Supported: 10xv2, 10xv3, dropseq, celseq2, seqwell, indrop, indropv2, sciseq, dronc, smartseq2"
+        error "Unknown platform: ${platform}. Supported: 10xv2, 10xv3, dropseq, celseq2, seqwell, indrop, indropv2, sciseq, sciseq_well, dronc, smartseq2"
     }
 
     settings
@@ -182,11 +190,12 @@ process STARSOLO_ALIGN {
         """
     } else {
         // Standard CB_UMI_Simple platforms
-        def whitelist_flag = settings.whitelist != 'None' ?
-            "--soloCBwhitelist ${projectDir}/assets/whitelists/${settings.whitelist}" :
-            "--soloCBwhitelist None"
+        def whitelist = params.solo_whitelist ?: (settings.whitelist != 'None' ?
+            "${projectDir}/assets/whitelists/${settings.whitelist}" : 'None')
 
         def expected_len = settings.soloCBlen + settings.soloUMIlen
+        // 10x 3' v3 read 1 is sometimes sequenced to 26 nt, leaving 10 of the 12 UMI bases
+        def min_umi = platform == '10xv3' ? 10 : settings.soloUMIlen
         def clip_flag = (settings.tsoClip && params.tso_clip.toString() != 'false') ?
             "--clipAdapterType CellRanger4" : ""
 
@@ -194,18 +203,33 @@ process STARSOLO_ALIGN {
         #!/bin/bash
         set -euo pipefail
 
-        # Detect actual barcode read length from first record of R1
-        if [[ "${r1}" == *.gz ]]; then
-            ACTUAL_LEN=\$(nf_head.sh 2 zcat ${r1} | tail -1 | tr -d '\\n' | wc -c)
-        else
-            ACTUAL_LEN=\$(nf_head.sh 2 cat ${r1} | tail -1 | tr -d '\\n' | wc -c)
+        ACTUAL_LEN=\$(nf_head.sh 2 zcat -f ${r1} | tail -1 | tr -d '\\n' | wc -c)
+        EXPECTED_LEN=${expected_len}
+        UMI_LEN=${settings.soloUMIlen}
+        if [ "\$ACTUAL_LEN" -lt "\$EXPECTED_LEN" ]; then
+            UMI_LEN=\$((ACTUAL_LEN - ${settings.soloCBstart} + 1 - ${settings.soloCBlen}))
+            if [ "${settings.soloUMIstart}" -lt "${settings.soloCBstart}" ] || [ "\$UMI_LEN" -lt ${min_umi} ]; then
+                echo "ERROR: [${meta.id}] platform '${platform}' needs a \${EXPECTED_LEN}bp barcode read (CB=${settings.soloCBlen} + UMI=${settings.soloUMIlen}); detected \${ACTUAL_LEN}bp" >&2
+                exit 1
+            fi
+            echo "WARNING: [${meta.id}] barcode read is \${ACTUAL_LEN}bp; UMI truncated to \${UMI_LEN}bp" >&2
+        elif [ "\$ACTUAL_LEN" -gt "\$EXPECTED_LEN" ]; then
+            echo "NOTE: [${meta.id}] barcode read is \${ACTUAL_LEN}bp; bases after \${EXPECTED_LEN} are ignored" >&2
         fi
 
-        EXPECTED_LEN=${expected_len}
-
-        if [ "\$ACTUAL_LEN" -ne "\$EXPECTED_LEN" ]; then
-            echo "WARNING: [${meta.id}] Platform '${platform}' expects barcode read length of \${EXPECTED_LEN}bp (CB=${settings.soloCBlen} + UMI=${settings.soloUMIlen}) but detected \${ACTUAL_LEN}bp." >&2
-            echo "         Using --soloBarcodeReadLength 0 to handle this safely." >&2
+        # Fail on the wrong whitelist (e.g. 10x v2 vs v3 chemistry), from the cell barcodes of 20,000 reads
+        WL="${whitelist}"
+        if [ "\$WL" != "None" ] && [ "${params.solo_min_wl_fraction}" != "0" ]; then
+            nf_head.sh 80000 zcat -f ${r1} | awk 'NR % 4 == 2 { print substr(\$0, ${settings.soloCBstart}, ${settings.soloCBlen}) }' > wl_sample_cb.txt
+            sort -u wl_sample_cb.txt > wl_sample_cb_uniq.txt
+            zcat -f "\$WL" | grep -F -x -f wl_sample_cb_uniq.txt > wl_sample_hits.txt || true
+            WL_FRAC=\$(awk 'NR == FNR { h[\$1]; next } { n++; if (\$1 in h) k++ } END { printf "%.4f", (n ? k / n : 0) }' wl_sample_hits.txt wl_sample_cb.txt)
+            echo "[STARSOLO] ${meta.lane_id ?: meta.id}: \${WL_FRAC} of sampled cell barcodes on \$(basename \$WL)" >&2
+            if awk -v f="\$WL_FRAC" -v m="${params.solo_min_wl_fraction}" 'BEGIN { exit !(f < m) }'; then
+                echo "ERROR: [${meta.id}] only \${WL_FRAC} of cell barcodes are on \$(basename \$WL) (minimum ${params.solo_min_wl_fraction}); check the platform / chemistry or set --solo_whitelist" >&2
+                exit 1
+            fi
+            rm -f wl_sample_cb.txt wl_sample_cb_uniq.txt wl_sample_hits.txt
         fi
 
         STAR \\
@@ -216,9 +240,9 @@ process STARSOLO_ALIGN {
             --soloCBstart ${settings.soloCBstart} \\
             --soloCBlen ${settings.soloCBlen} \\
             --soloUMIstart ${settings.soloUMIstart} \\
-            --soloUMIlen ${settings.soloUMIlen} \\
+            --soloUMIlen \$UMI_LEN \\
             --soloBarcodeReadLength 0 \\
-            ${whitelist_flag} \\
+            --soloCBwhitelist "\$WL" \\
             ${clip_flag} \\
             --soloFeatures GeneFull SJ \\
             --twopassMode Basic \\

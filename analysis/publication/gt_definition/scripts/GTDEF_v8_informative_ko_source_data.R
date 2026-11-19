@@ -7,8 +7,8 @@
 #   d_m_curve     power-gated: sites passing and ground-truth sites at t = 0/25/50/75% vs m
 #   e_cov_curve   depth-gated: the same vs KO coverage
 # INPUT : report/pm_gt/GTDEF_v8_m_null_fit.tsv (GTDEF_v8_m_null_check_plot.R),
-#         report/pm_gt/GTDEF_robust_{m_curve,ko_cov_curve}_v8.tsv (GTDEF_prep_source_data.R, from
-#         human/pm/gt_eval_v8/robustness/)
+#         human/pm/gt_eval_v9/robustness/{m_curve,ko_cov_curve,parity}.tsv (human/scripts/gt_robustness_v9.R;
+#         until 2026-11-16 the v8 curves via GTDEF_prep_source_data.R)
 # OUTPUT: source_data/pm_gt/GTDEF_v8_informative_ko.{b_null_fit,d_m_curve,e_cov_curve}.tsv
 #         (drawn by GTDEF_v8_informative_ko_plot.R)
 # ============================================================================
@@ -24,5 +24,9 @@ rd <- function(stem) {
 }
 
 write_sd(rd("GTDEF_v8_m_null_fit"), SRC_DIR, STEM, "b_null_fit")
-write_sd(rd("GTDEF_robust_m_curve_v8"), SRC_DIR, STEM, "d_m_curve")
-write_sd(rd("GTDEF_robust_ko_cov_curve_v8"), SRC_DIR, STEM, "e_cov_curve")
+# d, e (2026-11-16): v9 ground truth on the seed-8787 pileups (human/scripts/gt_robustness_v9.R; its centre reproduces
+# the v9 positives at t = 25 / 50 / 75%, both gates)
+RB9 <- file.path(REPO_DIR, "human", "pm", "gt_eval_v9", "robustness")
+stopifnot(fread(file.path(RB9, "parity.tsv"))$identical)
+write_sd(fread(file.path(RB9, "m_curve.tsv")), SRC_DIR, STEM, "d_m_curve")
+write_sd(fread(file.path(RB9, "ko_cov_curve.tsv")), SRC_DIR, STEM, "e_cov_curve")

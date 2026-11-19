@@ -1,0 +1,22 @@
+step	parameter	value	date	figure
+step1_quality	bq	30	2026-09-26	GTDEF_step1_quality
+step2_universe	snp_filter	excluded	2026-09-26	GTDEF_step2_universe
+step3_coverage	ko_min_expected	3	2026-09-27	GTDEF_robust_r5_informative_ko
+step3_coverage	min_cov_ko	0	2026-09-27	GTDEF_robust_r5_informative_ko
+step3_coverage	min_cov	10	2026-09-27	GTDEF_robustness
+step4_control_editing	min_edit_reads	3	2026-09-27	GTDEF_robustness
+step4_control_editing	min_ctrl_edit	0.05	2026-09-27	GTDEF_robustness
+step5_reproducibility	min_cov_teratoma	10	2026-09-27	GTDEF_robustness
+step5_reproducibility	consistency_mode	evaluable	2026-09-27	GTDEF_robustness
+step5_reproducibility	consistency_min	3	2026-09-27	GTDEF_robustness
+step6_depletion	depletion	0.50	2026-09-27	GTDEF_robustness
+step6_depletion	depletion_sweep	0.25,0.50,0.75	2026-09-29	sweep_infneg
+step6_depletion	depletion_rule	point estimate KO edit <= (1-t) x NTC edit in ADAR1_KO OR ADARB1_KO	2026-09-29	sweep_infneg
+step7_negative	neg_max_depletion	0.25	2026-09-29	sweep_infneg
+step7_negative	neg_bound	one-sided Clopper-Pearson lower bound on KO edit, alpha 0.05, NTC edit as known	2026-09-29	sweep_infneg
+step7_negative	neg_arms	ADAR1_KO AND ADARB1_KO (both covered, both not depleted)	2026-09-29	sweep_infneg
+step8_scoring	fp_class	informative_negative only (v6 FP_known_not_depleted / FP_novel retired)	2026-09-29	sweep_infneg
+step8_scoring	unscored	unresolved, not_eligible, not in candidate table	2026-09-29	sweep_infneg
+step8_scoring	reported_bam_types	all except sample (Unprocessed); per caller, not any BAM configuration whose defining parameter has no effect on its calls (scallele recal, recalq20)	2026-09-29	gt_score_v6; UPDATE-19
+step9_control	random_draws	200	2026-09-29	random_truth; sweep_infneg
+step9_control	random_seed	20260929	2026-09-29	random_truth; sweep_infneg

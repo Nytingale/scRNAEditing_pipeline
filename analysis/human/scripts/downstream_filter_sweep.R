@@ -62,6 +62,10 @@ option_list = list(
                            "'caller' (keep the caller's OWN strand call, no annotation override)")),
   make_option("--strand_ambiguity_threshold", type = "double", default = 0.3,
               help = "For hybrid mode: if abs(fwd-rev)/(fwd+rev) < this, site is ambiguous and falls back to annotation"),
+  make_option("--library_strandedness", type = "character", default = "forward",
+              help = paste("For hybrid mode: forward (reads in transcript orientation, e.g. 10x 3'),",
+                           "reverse (reads antisense; read strand is flipped) or unstranded",
+                           "(read orientation carries no strand, so every site uses the annotation)")),
   make_option("--min_alt",        type = "integer",   default = 3, help = "Minimum alt allele read count (used when --alt_rule count)"),
   make_option("--min_edit_level", type = "double",    default = 0.01, help = "Minimum editing level (cov_alt / total)"),
   # ── alt-read support rule ─────────────────────────────────────────────────
@@ -715,12 +719,32 @@ if (opt$caller == "bcftools") {
   if (nrow(df) > 0) df$sample = opt$sample
 
 } else if (opt$caller == "cellsnp") {
-  # CELLSNP_LITE TSV: chr, pos, ref, alt, cov_ref (DP - AD), cov_alt (AD), cov (DP + OTH).
-  # Genomic frame, no strand or read-strand counts: annotation stranding only.
-  colnames(df) = c("chr", "pos", "ref", "alt", "cov_ref", "cov_alt", "cov")
+  # CELLSNP_LITE TSV: chr, pos, ref, alt, cov_ref (DP - AD), cov_alt (AD), cov (DP + OTH),
+  # then alt_fwd, alt_rev (alt reads on forward- / reverse-oriented fragments). Genomic
+  # frame, no caller strand. Older 7-column files have no read-strand counts, so hybrid
+  # falls back to annotation for every site.
+  if (ncol(df) >= 9) {
+    df = df[, 1:9]
+    colnames(df) = c("chr", "pos", "ref", "alt", "cov_ref", "cov_alt", "cov", "alt_fwd", "alt_rev")
+  } else {
+    colnames(df) = c("chr", "pos", "ref", "alt", "cov_ref", "cov_alt", "cov")
+  }
   df$cov_ref     = as.numeric(df$cov_ref)
   df$cov_alt     = as.numeric(df$cov_alt)
   df$cov         = as.numeric(df$cov)
+  if (opt$strand_mode == "hybrid" && nrow(df) > 0) {
+    if ("alt_fwd" %in% colnames(df)) {
+      df$read_alt_fwd = suppressWarnings(as.numeric(df$alt_fwd))
+      df$read_alt_rev = suppressWarnings(as.numeric(df$alt_rev))
+      df$read_alt_fwd[is.na(df$read_alt_fwd)] = 0
+      df$read_alt_rev[is.na(df$read_alt_rev)] = 0
+    } else {
+      log_msg("  WARNING: Cellsnp-lite input has no alt_fwd/alt_rev columns; hybrid uses annotation for every site")
+      df$read_alt_fwd = 0
+      df$read_alt_rev = 0
+    }
+  }
+  df$alt_fwd = NULL; df$alt_rev = NULL
   df             = df[df$cov >= PARSE_MIN_COV, ]
   df$site        = paste0(df$chr, ":", df$pos)
   df$strand      = rep("+", nrow(df))
@@ -868,18 +892,25 @@ log_msg("STEP 5: Strand assignment (mode: ", opt$strand_mode, ")")
 
 # --- 5a: Read-based strand inference (hybrid mode only) ----------------------
 read_strand_sites = NULL
-if (opt$strand_mode == "hybrid" && opt$caller %in% c("bcftools", "gatk") &&
+lib_strand = tolower(trimws(opt$library_strandedness))
+if (!lib_strand %in% c("forward", "reverse", "unstranded"))
+  stop("--library_strandedness must be forward, reverse or unstranded (got '", opt$library_strandedness, "')")
+if (opt$strand_mode == "hybrid" && opt$caller %in% c("bcftools", "gatk", "cellsnp") &&
     "read_alt_fwd" %in% colnames(df)) {
-  log_msg("  Hybrid: inferring strand from read-level counts (I16/SB)")
+  log_msg("  Hybrid: inferring strand from read-level counts (I16/SB/Cellsnp-lite fragment pass); library: ", lib_strand)
   thresh = opt$strand_ambiguity_threshold
 
   # Use ALT allele strand counts: alt_fwd vs alt_rev
   total_alt = df$read_alt_fwd + df$read_alt_rev
   # Strand imbalance ratio: (fwd - rev) / (fwd + rev), ranges from -1 to +1
-  # Positive = mostly forward-strand reads, Negative = mostly reverse-strand reads
+  # Positive = mostly forward-strand reads, Negative = mostly reverse-strand reads.
+  # Reverse libraries read the antisense strand, so the sign is flipped; unstranded
+  # libraries carry no strand in read orientation, so every site is ambiguous.
   imbalance = ifelse(total_alt > 0,
                      (df$read_alt_fwd - df$read_alt_rev) / total_alt,
                      0)
+  if (lib_strand == "reverse") imbalance = -imbalance
+  if (lib_strand == "unstranded") total_alt[] = 0
 
   # Classify: clear forward, clear reverse, or ambiguous
   df$read_strand = ifelse(imbalance > thresh, "+",

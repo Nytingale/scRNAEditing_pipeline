@@ -319,9 +319,9 @@ process JACUSA2_CALL1 {
 
     script:
     // -P library type (strandedness). Each library uses the strand RSeQC
-    // inferred: forward=FR-SECONDSTRAND (10x 3'), reverse=FR-FIRSTSTRAND.
+    // inferred: forward=FR-SECONDSTRAND (10x 3'), reverse=RF-FIRSTSTRAND (dUTP).
     def strand_flag = strandedness == 'forward' ? 'FR-SECONDSTRAND' :
-                      strandedness == 'reverse' ? 'FR-FIRSTSTRAND' : 'UNSTRANDED'
+                      strandedness == 'reverse' ? 'RF-FIRSTSTRAND' : 'UNSTRANDED'
     def qual = (meta.qual_override != null) ? meta.qual_override : params.qual
     def min_cov = params.min_cov
     """
@@ -405,7 +405,7 @@ process JACUSA2_CHROM {
 
     script:
     def strand_flag = strandedness == 'forward' ? 'FR-SECONDSTRAND' :
-                      strandedness == 'reverse' ? 'FR-FIRSTSTRAND' : 'UNSTRANDED'
+                      strandedness == 'reverse' ? 'RF-FIRSTSTRAND' : 'UNSTRANDED'
     def qual = (meta.qual_override != null) ? meta.qual_override : params.qual
     def min_cov = params.min_cov
     def pref = "${meta.id}__${bam_label}__${chrom}"
@@ -487,9 +487,9 @@ process JACUSA2_GATHER {
 
 /*
  * Cellsnp-lite mode 2b: bulk pileup of the pseudobulk BAM (--cellTAG None, --UMItag
- * None). No strand output (annotation strand mode only) and no base-quality filter
- * (--minMAPQ = QUAL). Output: cov_ref = DP - AD, cov_alt = AD, cov = DP + OTH; rows
- * with AD >= 1. Runs params.cellsnp_bin from its own env so the pipeline's samtools
+ * None), then mode 1 at the same sites over forward-oriented fragments for hybrid
+ * stranding. No caller strand and no base-quality filter (--minMAPQ = QUAL). Output:
+ * cov_ref = DP - AD, cov_alt = AD, cov = DP + OTH, alt_fwd, alt_rev; rows with AD >= 1. Runs params.cellsnp_bin from its own env so the pipeline's samtools
  * stays on PATH.
  */
 process CELLSNP_LITE {
@@ -547,15 +547,58 @@ process CELLSNP_LITE {
         -p ${task.cpus} \\
         --gzip
 
-    gzip -cd _csnp/cellSNP.base.vcf.gz | awk -F'\\t' 'BEGIN{OFS="\\t"} !/^#/ {
+    # Read-strand counts for hybrid stranding: a second pass at the reported sites and
+    # alleles (-R; AD >= 1 SNVs only) over forward-oriented fragments; reverse = AD - forward.
+    # Single-end BAMs (STARsolo 10x/Drop-seq): exclude flag 16 on top of the default
+    # 1796. Paired-end: forward fragment = R1 forward or R2 reverse, split with samtools.
+    N_PAIRED=\$(samtools view -f 1 ${bam} 2>/dev/null | head -n 1 | wc -l || true)
+    if [ "\$N_PAIRED" = "0" ]; then
+        FWD_BAM=${bam}; FWD_EXCL=1812
+    else
+        samtools view -b -@ ${task.cpus} \\
+            -e '(!flag.paired && !flag.reverse) || (flag.read1 && !flag.reverse) || (flag.read2 && flag.reverse)' \\
+            -o _fwd.bam ${bam}
+        samtools index _fwd.bam
+        FWD_BAM=_fwd.bam; FWD_EXCL=1796
+    fi
+    gzip -cd _csnp/cellSNP.base.vcf.gz | awk -F'\\t' '/^#/ { print; next } {
+        ad = 0; n = split(\$8, kv, ";")
+        for (i = 1; i <= n; i++) { split(kv[i], p, "="); if (p[1] == "AD") ad = p[2] + 0 }
+        r = toupper(\$4); a = toupper(\$5)
+        if (ad >= 1 && r ~ /^[ACGT]\$/ && a ~ /^[ACGT]\$/ && r != a) print
+    }' | gzip > _called.vcf.gz
+    ${params.cellsnp_bin} \\
+        -s \$FWD_BAM \\
+        -I ${meta.id} \\
+        -O _csnp_fwd \\
+        -R _called.vcf.gz \\
+        --cellTAG None \\
+        --UMItag None \\
+        --exclFLAG \$FWD_EXCL \\
+        --minCOUNT 0 \\
+        --minMAF 0 \\
+        --minMAPQ ${qual} \\
+        -p ${task.cpus} \\
+        --gzip
+
+    gzip -cd _csnp_fwd/cellSNP.base.vcf.gz | awk -F'\\t' 'BEGIN{OFS="\\t"} !/^#/ {
+        ad = 0; n = split(\$8, kv, ";")
+        for (i = 1; i <= n; i++) { split(kv[i], p, "="); if (p[1] == "AD") ad = p[2] + 0 }
+        print \$1 ":" \$2 ":" toupper(\$4) ":" toupper(\$5), ad
+    }' > _fwd_ad.txt
+
+    gzip -cd _csnp/cellSNP.base.vcf.gz | awk -F'\\t' 'BEGIN{OFS="\\t"}
+    FILENAME == ARGV[1] { fwd[\$1] = \$2; next }
+    !/^#/ {
         ad = dp = oth = 0; n = split(\$8, kv, ";")
         for (i = 1; i <= n; i++) { split(kv[i], p, "=")
             if (p[1] == "AD") ad = p[2] + 0; else if (p[1] == "DP") dp = p[2] + 0; else if (p[1] == "OTH") oth = p[2] + 0 }
         r = toupper(\$4); a = toupper(\$5)
-        if (ad >= 1 && r ~ /^[ACGT]\$/ && a ~ /^[ACGT]\$/ && r != a) print \$1, \$2, r, a, dp - ad, ad, dp + oth
-    }' | gzip > ${meta.id}_${bam_label}_cellsnp_variants.txt.gz
+        f = fwd[\$1 ":" \$2 ":" r ":" a] + 0; if (f > ad) f = ad
+        if (ad >= 1 && r ~ /^[ACGT]\$/ && a ~ /^[ACGT]\$/ && r != a) print \$1, \$2, r, a, dp - ad, ad, dp + oth, f, ad - f
+    }' _fwd_ad.txt - | gzip > ${meta.id}_${bam_label}_cellsnp_variants.txt.gz
 
-    rm -rf _csnp _chroms.txt _chroms_req.txt _chroms_bam.txt
+    rm -rf _csnp _csnp_fwd _called.vcf.gz _fwd.bam _fwd.bam.bai _fwd_ad.txt _chroms.txt _chroms_req.txt _chroms_bam.txt
     """
 }
 

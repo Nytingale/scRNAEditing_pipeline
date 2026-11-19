@@ -11,7 +11,7 @@ source(file.path(REPO_DIR, "plotting", "plotting_functions.R"))
 source(file.path(REPO_DIR, "plotting", "gt_v8_paths.R"))
 source(file.path(REPO_DIR, "plotting", "source_data_io.R"))
 
-DATASET <- "pm_gt"
+DATASET <- Sys.getenv("GTDEF_OUT_DATASET", "pm_gt")
 FIG_DIR <- file.path(DELIV_DIR, "figures", DATASET)
 SRC_DIR <- file.path(DELIV_DIR, "source_data", DATASET)
 dir.create(FIG_DIR, recursive = TRUE, showWarnings = FALSE)

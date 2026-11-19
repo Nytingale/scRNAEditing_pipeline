@@ -24,7 +24,7 @@
 #   qsub -v TIER=<tier>,STAGE=collect human/pm/scripts/run_pipeline_pm_gt_v8.sh   (after the run)
 # =============================================================================
 #$ -N nf_pm_gt_v8
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/
@@ -50,6 +50,37 @@ esac
 # TSO-clipped rerun (2026-10-29): TIER=sample with SHEET=samplesheet_pm_gt_persample.csv (no prebuilt dedup columns), so the
 # pipeline deduplicates per teratoma and publishes <sample>/02_dedup, the input of merge_gt_{rmdup,umi}_bams_v6.sh.
 SHEET=${SHEET_OVERRIDE:-$SHEET}
+# UMIMD=1 (PI decision 2026-11-09): add UMI-aware MarkDuplicates (sampleUmiMd) to the arm / sample / celltype tiers,
+# NTC units only (the scored units; user 2026-11-09), from the prebuilt BAMs of umimd_bams.sh (umimd_bam column):
+# samplesheet <sheet>_umimd_ntc.csv = the NTC rows + umimd_bam. Own outdir / work dir / launch dir (<name>_umimd):
+# a -resume of the v8 work dirs is not cached (CELLSNP_LITE and INFER_STRANDEDNESS changed since 2026-10-14; tried
+# 2026-11-09, stopped before any task finished). Scoring splices these call sets with the published ones.
+DEDUP="none,coordinate,umi"; BAMTYPES="sample,sampleRmDup,sampleUmiDup,recal,recalq20"
+if [ "${UMIMD:-0}" = 1 ]; then
+  SHEET="${SHEET%.csv}_umimd_ntc.csv"; DEDUP="umimd"; BAMTYPES="sampleUmiMd"; NAME="${NAME}_umimd"
+fi
+# UMI=1 (v10, user 2026-11-12): umi_tools configurations only (sampleUmiDup) on the seed-8787 BAMs at the published
+# paths (umidup_bam column), same units as the published run (celltype: the 23 NTC cell types of
+# samplesheet_pm_gt_celltype_v8_NTC.csv), into results_<name>_umi. STAGE=collect then runs STAGE=place: the
+# sampleUmiDup subtrees go into the published tree, Cellsnp-lite hybrid into gt_eval_v8/cellsnp_hybrid/results/centre/
+# (the layout of cellsnp_hybrid_v8.sh, whose replay gives the same step-4 / step-5 tables as the pipeline's hybrid pass).
+#   for t in arm sample celltype; do qsub -v TIER=$t,UMI=1 human/pm/scripts/run_pipeline_pm_gt_v8.sh; done
+PUBNAME=$NAME
+if [ "${UMI:-0}" = 1 ]; then
+  [ "$TIER" = celltype ] && SHEET="$DATADIR/samplesheet_pm_gt_celltype_v8_NTC.csv"
+  DEDUP="umi"; BAMTYPES="sampleUmiDup"; NAME="${NAME}_umi"
+fi
+# CSNP=1 (user 2026-11-16: "Whatever is run should be what the pipeline would run for a user"): Cellsnp-lite alone,
+# same units, BAM types and settings (with UMIMD=1: the sampleUmiMd run), through the current CELLSNP_LITE module (both
+# passes; second pass at the reported sites only), for its run time, CPU and memory in response figure 16. Fresh
+# outdir / work dir / launch dir <name>_csnp; the published call sets are not touched.
+#   for t in arm sample celltype; do for m in 0 1; do qsub -v TIER=$t,UMIMD=$m,CSNP=1 human/pm/scripts/run_pipeline_pm_gt_v8.sh; done; done
+CALLERS="bcftools,reditools3,gatk,jacusa2,scallele,cellsnp"
+if [ "${CSNP:-0}" = 1 ]; then
+  [ "${UMI:-0}" = 1 ] && { echo "ERROR: CSNP=1 with UMI=1" >&2; exit 1; }
+  CALLERS="cellsnp"; NAME="${NAME}_csnp"
+  [ "$TIER" = celltype ] && [ "${UMIMD:-0}" != 1 ] && SHEET="$DATADIR/samplesheet_pm_gt_celltype_v8_NTC.csv"
+fi
 OUTDIR="$DATADIR/results_$NAME"
 WORK="$DATADIR/work_$NAME"
 RUNDIR="$DATADIR/nf_run_$NAME"
@@ -59,9 +90,13 @@ if [ "$STAGE" = "run" ]; then
   export PS1="${PS1:-}"
   export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/cm/shared/apps/sge/2011.11p1/bin/linux-x64:${PATH}"
   set +u; source ~/.bashrc 2>/dev/null || true; mamba activate scRNAEditing; set -u
+  export SCRNA_CONDA_ENV=${SCRNA_CONDA_ENV:-${CONDA_ENVS:-/opt/conda/envs}/scRNAEditing}
+  # Slurm since 2026-11-14 (SGE cluster retired)
+  PROFILE=(-profile sge,conda)
+  [ -n "${SLURM_JOB_ID:-}" ] && PROFILE=(-profile slurm,conda -c "${NFDIR}/conf/slurm.config")
   echo "=== $(date) === teratoma v8 caller run, tier $TIER -> $OUTDIR ==="
   nextflow run "${NFDIR}/main.nf" \
-    -profile sge,conda \
+    "${PROFILE[@]}" \
     --input "$SHEET" \
     --outdir "$OUTDIR" \
     --genome_fasta "${REFDIR}/hg38.analysisSet.fa" \
@@ -73,11 +108,11 @@ if [ "$STAGE" = "run" ]; then
     --known_sites_vcf "${REFDIR}/dbSNP156_GRCh38.vcf.gz" \
     --refseq_bed "${BASEDIR}/review/ref_annots/hg38_RefSeq.bed" \
     --main_chroms "${REFDIR}/chrlist_main_chrs.txt" \
-    --callers "bcftools,reditools3,gatk,jacusa2,scallele,cellsnp" \
+    --callers "$CALLERS" \
     --scallele_conda "${CONDA_ENVS:-/opt/conda/envs}/scAllele" \
-    --dedup "none,coordinate,umi" \
+    --dedup "$DEDUP" \
     --strand_modes "annotation,hybrid,caller" \
-    --bam_types "sample,sampleRmDup,sampleUmiDup,recal,recalq20" \
+    --bam_types "$BAMTYPES" \
     --qual 30 \
     --min_cov 10 \
     --bcftools_baq true \
@@ -88,12 +123,20 @@ if [ "$STAGE" = "run" ]; then
     -work-dir "$WORK" \
     -resume
   echo "=== $(date) === Pipeline complete ==="
+  [ "${UMI:-0}" = 1 ] && $(command -v qsub || echo /cm/shared/apps/sge/2011.11p1/bin/linux-x64/qsub) -v TIER="$TIER",UMI=1,STAGE=collect "$BASEDIR/human/pm/scripts/run_pipeline_pm_gt_v8.sh"
   exit 0
+fi
+
+if [ "$STAGE" = "place" ]; then
+  [ "${UMI:-0}" = 1 ] || { echo "ERROR: STAGE=place needs UMI=1" >&2; exit 1; }
+  PLACE_PUB="$DATADIR/results_$PUBNAME" PLACE_HYB="$DATADIR/gt_eval_v8/cellsnp_hybrid/results/centre/results_$PUBNAME" \
+    bash "$BASEDIR/human/pm/scripts/place_umi_calls.sh" "$OUTDIR"
+  exit $?
 fi
 
 if [ "$STAGE" = "collect" ]; then
   n_ok=0; n_empty=0; n_bad=0
-  IDX=$(mktemp); trap 'rm -f "$IDX"' EXIT
+  IDX=$(mktemp -p "$BASEDIR/tmp"); trap 'rm -f "$IDX"' EXIT
   find "$WORK" -mindepth 3 -maxdepth 3 -name '*_pre100.tsv.gz' -type f > "$IDX"
   while read -r pub; do
     d=$(dirname "$pub"); prefix=$(basename "$pub" _pre100.tsv.gz)
@@ -110,6 +153,7 @@ if [ "$STAGE" = "collect" ]; then
   done < <(find "$OUTDIR" -path '*/04_filtered/*' -name '*_pre100.tsv.gz')
   echo "collected $n_ok call sets ($n_empty empty step tables); $n_bad without a matching work dir"
   [ "$n_bad" -eq 0 ]
+  [ "${UMI:-0}" = 1 ] && { STAGE=place bash "$BASEDIR/human/pm/scripts/run_pipeline_pm_gt_v8.sh"; exit $?; }
   exit 0
 fi
 echo "ERROR: unknown STAGE '$STAGE'" >&2; exit 1

@@ -18,6 +18,8 @@ MIN_COV <- 10L
 TS <- paste0("T", 1:4, "_NTC_ctrl")
 MIN_TER <- as.integer(Sys.getenv("REACH_MIN_TER", length(TS)))
 V8 <- file.path(PM, "gt_eval_v8"); RR <- file.path(V8, "replicates")
+# pooled scoring set: REPL_SCN=scoring_pwcov (headline, default) -> rediportal_pwcov/; scoring -> rediportal/
+SCN <- Sys.getenv("REPL_SCN", "scoring_pwcov"); RDN <- sub("^scoring", "rediportal", SCN)
 O <- file.path(RR, if (MIN_TER == length(TS)) "reachable" else paste0("reachable_min", MIN_TER))
 dir.create(O, showWarnings = FALSE)
 STRATS <- c("pooled", "k2", "k3", "k4", "jacusa2rep")
@@ -38,7 +40,7 @@ site_key <- function(s) { p <- tstrsplit(s, ":", fixed = TRUE); key(p[[1]], p[[2
 RDP <- file.path(PM, "gt_eval_v6", "rediportal", "pileup")
 VARS <- c("cov10_alt1", "alt3", "alt3_e05")
 POS <- lapply(setNames(VARS, VARS), function(v)
-  site_key(fread(cmd = paste("zcat", file.path(V8, "rediportal", "scoring_mismatch", paste0("positive_sites_", v, ".tsv.gz"))))$site))
+  site_key(fread(cmd = paste("zcat", file.path(V8, RDN, "scoring_mismatch", paste0("positive_sites_", v, ".tsv.gz"))))$site))
 pos_any <- unique(unlist(POS))
 ter_keys <- unlist(lapply(TS, function(u) unique(unlist(lapply(CHRS, function(c) {
   f <- file.path(RDP, u, paste0(c, ".tsv.gz")); if (!file.exists(f)) return(numeric())
@@ -57,7 +59,7 @@ counts[, pct_reachable := round(100 * n_reachable / n_pos, 1)]
 print(counts); fwrite(counts, file.path(O, "reachable_counts.tsv"), sep = "\t")
 
 redi_prec <- function(s) {
-  f <- if (s == "pooled") file.path(V8, "rediportal", "scoring_mismatch", "unit_scores.tsv") else
+  f <- if (s == "pooled") file.path(V8, RDN, "scoring_mismatch", "unit_scores.tsv") else
     file.path(RR, "scoring", paste0("rediportal_", s), "unit_scores.tsv")
   fread(f)[tier == "arm", .(config, variant, precision)]
 }

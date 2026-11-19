@@ -15,7 +15,7 @@ This pipeline runs variant callers (BCFtools, REDItools3, GATK HaplotypeCaller, 
 2. **Optional remapping**: STARsolo alignment with platform-aware parameters (10x v2, 10x v3, Smart-seq2, DroNc-seq, Drop-seq, CEL-seq2, Seq-Well, sci-seq, inDrops)
 3. **Lane merging**: rows sharing a `sample_id` are lanes of one sample and are merged before any analysis
 4. **Strandedness inference**: RSeQC `infer_experiment.py`
-5. **BAM type generation**: sample / goodCells / annotated / celltype × no dedup / coordinate dedup (RmDup) / UMI dedup (UmiDup), plus recal / recalq20 (BQSR) and recaldefault (GATK only)
+5. **BAM type generation**: sample / goodCells / annotated / celltype × no dedup / coordinate dedup (RmDup) / UMI dedup with umi_tools (UmiDup) / UMI-aware MarkDuplicates (UmiMd), plus recal / recalq20 (BQSR) and recaldefault (GATK only)
 6. **Variant calling**: every requested caller × BAM type. Deduplication, scAllele and (optionally) JACUSA2 run as one task per chromosome, then gather, so deep BAMs stay within memory
 7. **Downstream filtering**: parsing, main chromosomes, removal of multi-mismatch sites, known-SNP removal (optionally with a per-sample genetic-variant blacklist, BCFtools / GATK only), strand assignment, coverage and editing-level filters, and optional removal of sites near other mismatch types
 8. **Re-quantification**: one pileup-based, strand-aware editing level and coverage for every published site, comparable across callers
@@ -51,7 +51,7 @@ cd scRNAEditing_pipeline
 Add `-profile singularity` (or `apptainer`) to every run, together with your scheduler profile:
 
 ```bash
-nextflow run main.nf -profile singularity,slurm --input samplesheet.csv ...
+nextflow run main.nf -profile singularity,slurm -c conf/slurm.config --input samplesheet.csv ...
 ```
 
 Nextflow downloads the image and converts it once to a `.img` file. Set a shared cache so this happens only once per cluster; the cache directory must be on a file system the compute nodes can read:
@@ -111,7 +111,7 @@ Then point the pipeline at the environments:
 
 ```bash
 CONDA_BASE=$(conda info --base)
-nextflow run main.nf -profile conda,slurm \
+nextflow run main.nf -profile conda,slurm -c conf/slurm.config \
     --conda_env      "$CONDA_BASE/envs/scRNAEditing" \
     --scallele_conda "$CONDA_BASE/envs/scAllele" \
     --cellsnp_bin    "$CONDA_BASE/envs/cellsnp/bin/cellsnp-lite" \
@@ -146,6 +146,13 @@ nextflow run main.nf \
     --bam_types sample,sampleRmDup \
     --dedup none,coordinate \
     -profile singularity
+```
+
+The reference and annotation parameters can instead come from one genome params file per genome (see [Reference files](#reference-files)):
+
+```bash
+nextflow run main.nf -params-file genome.yaml --input samplesheet.csv \
+    --callers bcftools,reditools3 --bam_types sample,sampleRmDup --dedup none,coordinate -profile singularity
 ```
 
 ## Recommended configuration
@@ -194,6 +201,8 @@ Get them in one of two ways:
 
 `references/README.md` describes each step, the sources and versions, the other genomes, and how to build the annotations for a new genome.
 
+**Genome params files.** Keep the references of each genome in one YAML file and pass it with `-params-file genome.yaml` (template: `assets/genome_params_example.yaml`). The keys are the parameters above; leave out any resource a genome does not have (for example no `alu_annots`, `rediportal` or `known_sites_vcf` outside human and mouse), and parameters given on the command line still override the file. All files of a genome must use the same chromosome names. Without `known_sites_vcf`, the `recal` and `recalq20` bam types are skipped with a warning.
+
 ## Samplesheet format
 
 CSV with header. See `assets/samplesheet_example.csv` and `SAMPLESHEET_SPEC.md`.
@@ -206,9 +215,9 @@ CSV with header. See `assets/samplesheet_example.csv` and `SAMPLESHEET_SPEC.md`.
 | `called_barcodes` | No | Fallback cell list when no count matrix is available (Smart-seq2 QC list) |
 | `count_matrix` | No | STARsolo / Cell Ranger matrix directory; auto-discovered from `<bam>_Solo.out` if omitted |
 | `qc_barcodes` | No | Precomputed goodCells barcode list (skips metric QC) |
-| `rmdup_bam`, `umidup_bam` | No | Prebuilt coordinate / UMI-deduplicated BAM for samples that pool GEM wells without `@RG` tags |
+| `rmdup_bam`, `umidup_bam`, `umimd_bam` | No | Prebuilt coordinate / umi_tools / UMI-aware MarkDuplicates BAM for samples that pool GEM wells without `@RG` tags; used instead of running that dedup strategy on the sample |
 | `cell_id` | Smart-seq2 | Per-cell BAM identifier used by selective merge |
-| `platform` | If remapping | One of: 10xv2, 10xv3, dropseq, celseq2, seqwell, dronc, sciseq, indrop, indropv2, smartseq2 |
+| `platform` | If remapping | One of: 10xv2, 10xv3, dropseq, celseq2, seqwell, dronc, sciseq, sciseq_well, indrop, indropv2, smartseq2 |
 | `fastq_r1` | If remapping | R1 FASTQ (barcode read) |
 | `fastq_r2` | If remapping | R2 FASTQ (cDNA read) |
 
@@ -251,7 +260,7 @@ This masking is optional and may not be needed with newer tool versions. If in d
 | Parameter | Default | Description |
 |---|---|---|
 | `--snp_file` | null | Known SNP positions: RData with `snp_gr` GRanges (preferred) or BED file |
-| `--known_sites_vcf` | null | Known sites VCF/BED for GATK BQSR (separate from SNP filtering; null = no recalibration) |
+| `--known_sites_vcf` | null | Known sites VCF/BED for GATK BQSR (separate from SNP filtering; null = no recalibration, and `recal` / `recalq20` are skipped) |
 | `--strand_annots` | null | RData file with `plus.annot` and `minus.annot` GRanges objects |
 | `--alu_annots` | null | RData file with `alu.plus.annot` and `alu.minus.annot` GRanges (human only) |
 | `--main_chroms` | null | One chromosome name per line; restricts analysis to these chromosomes |
@@ -270,12 +279,15 @@ This masking is optional and may not be needed with newer tool versions. If in d
 | `--tso_min_length` | 20 | Smart-seq2: drop read pairs with a mate shorter than this after trimming |
 | `--cutadapt_conda` | `envs/cutadapt.yml` | conda profile only: cutadapt environment (prefix or file) for `CUTADAPT_TSO`; ignored with containers |
 | `--star_index` | null | Pre-built STAR genome index directory (built automatically if not provided) |
-| `--bam_types` | sample,sampleRmDup,sampleUmiDup,<br>recal,recalq20,<br>goodCells,goodCellsRmDup,goodCellsUmiDup,<br>annotated,annotatedRmDup,annotatedUmiDup,<br>celltype,celltypeRmDup,celltypeUmiDup | Comma-separated list of BAM types; only requested types are built |
-| `--dedup` | `none,coordinate` | Comma-separated dedup strategies: `none`, `coordinate` (GATK MarkDuplicates), `umi` (umi_tools). RmDup types need `coordinate`, UmiDup types need `umi` |
+| `--solo_whitelist` | null | With `--remap`, cell-barcode whitelist replacing the platform default in `assets/whitelists/` |
+| `--solo_min_wl_fraction` | 0.5 | With `--remap`, stop if fewer of the cell barcodes of 20,000 sampled reads are on the whitelist (usually the wrong platform, e.g. 10xv2 vs 10xv3); 0 = no check |
+| `--bam_types` | sample,sampleRmDup,sampleUmiDup,<br>recal,recalq20,<br>goodCells,goodCellsRmDup,goodCellsUmiDup,<br>annotated,annotatedRmDup,annotatedUmiDup,<br>celltype,celltypeRmDup,celltypeUmiDup | Comma-separated list of BAM types; only requested types are built. `sampleUmiMd`, `goodCellsUmiMd`, `annotatedUmiMd` and `celltypeUmiMd` (UMI-aware MarkDuplicates) are available but not in the default |
+| `--dedup` | `none,coordinate` | Comma-separated dedup strategies: `none`, `coordinate` (GATK MarkDuplicates), `umi` (umi_tools), `umimd` (UMI-aware MarkDuplicates). RmDup types need `coordinate`, UmiDup types need `umi`, UmiMd types need `umimd` |
 | `--dedup_cell_tag` | `CR` | Cell barcode tag for dedup grouping: `CR` (raw; recommended) or `CB` (corrected; reads with `CB:Z:-` are dropped) |
+| `--umi_seed` | `8787` | umi_tools `--random-seed`. STAR gives every unique read MAPQ 255, so umi_tools keeps a random read from each duplicate group; the seed makes the pick reproducible |
 | `--split_by_celltype` | false | Each cell type becomes its own sample (`<sample>__<celltype>`) and runs the full sample-level matrix; use sample-level `--bam_types` |
 | `--min_celltype_cells` | 0 | With `--split_by_celltype`, drop cell types with fewer cells (0 = keep all) |
-| `--mito_chr` | auto from GTF | Mitochondrial chromosome name(s), comma-separated; overrides auto-detection |
+| `--mito_chr` | auto from GTF | Mitochondrial chromosome name(s), comma-separated; overrides auto-detection. Auto-detection finds only the GTF chromosome names `chrM`, `chrMT`, `MT`, `M`, `mitochondrion_genome`, `chrMito`, `mito` or any name containing "mito" (case-insensitive). For any other name (for example a RefSeq accession such as `NC_012920.1`) the run does not stop: goodCells QC warns "No mitochondrial chromosomes detected in GTF; pct_mt will be 0", every cell gets 0% mitochondrial reads and `--qc_max_pct_mt` removes nothing. **Set `--mito_chr <name>` yourself for such genomes** |
 | `--qc_min_features` | 200 | goodCells: min genes detected in unannotated cells |
 | `--qc_max_features` | 6000 | goodCells: max genes detected in unannotated cells |
 | `--qc_max_pct_mt` | 20 | goodCells: max mitochondrial percent |
@@ -301,6 +313,7 @@ This masking is optional and may not be needed with newer tool versions. If in d
 |---|---|---|
 | `--strand_modes` | annotation | Comma-separated strand modes to benchmark; see [Strand modes](#strand-modes) |
 | `--strand_ambiguity_threshold` | 0.3 | `hybrid` mode: read-strand ambiguity cutoff |
+| `--strandedness` | auto | Library strandedness for every sample: `auto` (RSeQC `infer_experiment.py`), `forward`, `reverse` or `unstranded`. RSeQC runs either way; a given value that differs from its inference is used, with a warning. Sets REDItools3 `-s`, JACUSA2 `-P`, scAllele's library type and the orientation of `hybrid` read-strand counts |
 | `--snp_subtract_modes` | `off,on` | Per-sample SNP removal. `off` = known SNPs only; `on` = known SNPs + the caller's own per-sample genetic-variant blacklist (homozygous-ALT calls). Only BCFtools and GATK run `on`; other callers are `off` only. Outputs gain a `snp_{off,on}/` level |
 | `--min_cov` | 10 | Minimum read coverage at a site (all callers) |
 | `--min_alt` | 3 | Minimum edited (alt) read count, under `--alt_rule count`. See [Alt-read rule](#alt-read-rule-and-the-sensitivity-floor): this, not `--min_edit_level`, is the real sensitivity threshold |
@@ -336,10 +349,10 @@ This masking is optional and may not be needed with newer tool versions. If in d
 | Mode | Callers | Strand of each site |
 |---|---|---|
 | `annotation` | all | From the gene annotation (`--strand_annots`) |
-| `hybrid` | BCFtools, GATK | Read-strand counts, falling back to the annotation when ambiguous |
+| `hybrid` | BCFtools, GATK, Cellsnp-lite | Alt-allele read-strand counts (BCFtools I16, GATK SB, Cellsnp-lite forward-fragment pass), oriented by the library strandedness; the annotation is used only when the counts are ambiguous, and for every site on unstranded libraries |
 | `caller` | REDItools3, JACUSA2, scAllele | The caller's own strand call (scAllele: read-cluster strand) |
 
-Modes that do not apply to a caller are skipped. `caller` is not gated on library strandedness: on unstranded libraries it gives what a user of that caller would get.
+Modes that do not apply to a caller are skipped. `caller` is not gated on library strandedness: on unstranded libraries it gives what a user of that caller would get. BCFtools I16 and GATK SB count reads by their own orientation, so on paired-end stranded libraries mates disagree and `hybrid` falls back to the annotation for most sites; Cellsnp-lite counts by fragment orientation.
 
 ### Alt-read rule and the sensitivity floor
 
@@ -394,6 +407,8 @@ Cell filter × dedup suffix. `goodCells` is built **before** BAM filtering:
 3. QC unannotated cells only: nFeature, nCount, pct_mt (mito genes from GTF chromosome)
 4. `goodCells = annotated ∪ QC-passing unannotated`
 
+The mitochondrial genes are the GTF genes on the chromosome named `chrM`, `chrMT`, `MT`, `M`, `mitochondrion_genome`, `chrMito`, `mito`, or any name containing "mito" (case-insensitive). If the mitochondrial chromosome has another name (for example a RefSeq accession such as `NC_012920.1`), it is not detected. This is not an error: `compute_goodcells.R` only warns ("No mitochondrial chromosomes detected in GTF; pct_mt will be 0"), pct_mt is 0 for every cell and the `--qc_max_pct_mt` filter has no effect. You are responsible for setting `--mito_chr <name>` for such genomes (or `mito_chr` in the genome params file); the detected names are in the goodCells summary (`mito_chroms`).
+
 | Transition | Isolated effect |
 |---|---|
 | `sample` → `goodCells` | cell quality (empty droplets / low-quality removed) |
@@ -413,27 +428,33 @@ Coordinate and UMI dedup are **one Nextflow task per chromosome** (plus an `_oth
 | Strategy | Flag | Tool | Use case |
 |---|---|---|---|
 | Coordinate-based | `--dedup coordinate` | GATK MarkDuplicates (`--BARCODE_TAG` from `--dedup_cell_tag`, default CR) | Works for all protocols; Smart-seq2 per-cell BAMs are deduplicated cell by cell |
-| UMI-aware | `--dedup umi` | umi_tools dedup (`--per-cell`, cell tag from `--dedup_cell_tag`, `--umi-tag=UB`) | 10x, Drop-seq, and other UMI protocols |
+| UMI (umi_tools) | `--dedup umi` | umi_tools dedup (`--per-cell`, cell tag from `--dedup_cell_tag`, `--umi-tag=UB`) | 10x, Drop-seq, and other UMI protocols |
+| UMI-aware MarkDuplicates | `--dedup umimd` | GATK MarkDuplicates with `--BARCODE_TAG XU`, where XU = cell tag (from `--dedup_cell_tag`) + corrected UMI (UB) | UMI protocols; same duplicate groups as umi_tools (`--method=unique`: cell, position, strand, exact UMI), but keeps the read with the highest base-quality sum |
 | None | `--dedup none` | Passthrough | Skip deduplication entirely |
 
 Default `--dedup none,coordinate` runs both strategies so RmDup BAM types are produced alongside the unprocessed BAMs.
+
+Both UMI strategies need the UB tag and stop with an error on BAMs without it (Smart-seq2). They drop reads whose UMI could not be corrected (`UB:Z:-`) or that have no cell tag. UMI-aware MarkDuplicates writes `<sample>_umiMd.bam` and its metrics to `02_dedup/`; the XU tag stays on the output reads.
 
 ## Supported platforms (for --remap)
 
 | Platform | CB length | UMI length | Whitelist required |
 |---|---|---|---|
 | 10xv2 | 16 | 10 | 737K-august-2016.txt |
-| 10xv3 | 16 | 12 | 3M-february-2018.txt |
+| 10xv3 | 16 | 12 (10 or 11 with a 26- or 27-nt barcode read) | 3M-february-2018.txt |
 | dropseq | 12 | 8 | No |
 | celseq2 | 6 | 6 | No |
 | seqwell | 12 | 8 | No |
 | dronc | 12 | 8 | No |
 | sciseq | 10 | 8 | No |
+| sciseq_well | 18 (8-nt PCR-well tag + 10-nt RT barcode, inserted after the UMI) | 8 | No |
 | indrop | 8 | 6 | No |
 | indropv2 | Complex | Complex | User-supplied |
 | smartseq2 | N/A | N/A | N/A (plate-based) |
 
-Place whitelist files in `assets/whitelists/`.
+Place whitelist files in `assets/whitelists/`, or give one with `--solo_whitelist`.
+
+The barcode read length is checked against the platform. A shorter read stops the run, except 10xv3 runs sequenced with a 26- or 27-nt read 1, which are aligned with the UMI shortened to the bases read; longer reads are accepted and the extra bases ignored. The chemistry is not always what the publication states (for example a v3 library with a v2-length read 1), so the fraction of cell barcodes on the whitelist is also checked (`--solo_min_wl_fraction`).
 
 ## Output structure
 
@@ -487,11 +508,13 @@ results/
 -profile standard    # Local execution
 -profile sge         # Sun Grid Engine
 -profile pbs         # PBS/Torque
--profile slurm       # SLURM
+-profile slurm       # SLURM, always with -c conf/slurm.config
 -profile test        # Small resource limits
 ```
 
-Combine one software profile with one executor profile, e.g. `-profile singularity,slurm`.
+Combine one software profile with one executor profile, e.g. `-profile singularity,sge` or `-profile singularity,slurm -c conf/slurm.config`.
+
+**Slurm.** Always add `-c conf/slurm.config` to `-profile slurm`. The resource settings in `nextflow.config` also pass SGE options (`-cwd -l mem=<memory>`) as `clusterOptions`, which `sbatch` rejects; `conf/slurm.config` removes them, so memory is requested by `--mem` from each process's `memory` (cpus and time are unchanged). It also caps the time per job at 14 days (`resourceLimits`), because some processes ask for up to 420 h. Set your partition in that file (`queue`) if the default partition is not the right one. Executor settings are not part of the task hash, so `-resume` reuses tasks run under SGE or PBS.
 
 Resources are set per process label in `nextflow.config`. All callers share one allocation (12 cpus, 48 GB) so their runtimes are comparable; on SGE, memory is requested with `-l mem` (see the comments in `nextflow.config`).
 

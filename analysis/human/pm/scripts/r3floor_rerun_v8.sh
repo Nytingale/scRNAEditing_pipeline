@@ -20,7 +20,7 @@
 #   STAGE=manifest bash r3floor_rerun_v8.sh; STAGE=submit bash r3floor_rerun_v8.sh
 #$ -S /bin/bash
 #$ -N r3floor_v8
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/

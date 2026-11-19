@@ -6,7 +6,7 @@
 # Output: gt_eval_v8/replicates/reachable/
 #$ -S /bin/bash
 #$ -N rep_reach8
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/

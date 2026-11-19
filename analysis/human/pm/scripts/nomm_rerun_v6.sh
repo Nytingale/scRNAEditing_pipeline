@@ -13,7 +13,7 @@
 #   qsub -t 1-$n -tc 60 -v CHUNK=10 nomm_rerun_v6.sh
 #$ -S /bin/bash
 #$ -N nomm_v6
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/

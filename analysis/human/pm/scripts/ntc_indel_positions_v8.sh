@@ -7,7 +7,7 @@
 #   qsub -t 1-23 human/pm/scripts/ntc_indel_positions_v8.sh
 #$ -S /bin/bash
 #$ -N ntc_indels
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/
@@ -16,8 +16,8 @@
 #$ -l h_rt=4:00:00
 set -euo pipefail
 B=${SCRNA_DIR:-.}
-BAM=$B/human/pm/02_gt_bams_umi/merged_NTC_ctrl.bam
-OUT=$B/human/pm/gt_eval_v8/indel_sj/indels
+BAM=${BAM:-$B/human/pm/02_gt_bams_umi_v6/merged_NTC_ctrl.bam}
+OUT=${INDEL_OUT:-$B/human/pm/gt_eval_v8/indel_sj/indels}   # v9: gt_eval_v9/indel_sj/indels (seed-8787 BAM)
 mkdir -p "$OUT"
 CHRS=(chr{1..22} chrX)
 chr=${CHRS[$(( ${SGE_TASK_ID:-1} - 1 ))]}

@@ -38,13 +38,13 @@ manifest)
       for x in "$d"/*.snvs.txt; do printf "scchrom\t%s\n" "$(dirname "$(readlink "$x")")"; done
       printf "scgather\t%s\n" "$d"
     else printf "%s\t%s\n" "$c" "$d"; fi
-  done | sort -u > /tmp/recall5_rows.tsv
+  done | sort -u > "$R/recall5_rows.tsv"
   printf "id\tkind\told_dir\tpe\tmem\n" > "$M"
   while IFS=$'\t' read -r k d; do
     pe=$(sed -n 's/^#\$ -pe threaded \([0-9]*\).*/\1/p' "$d/.command.run")
     mem=$(sed -n 's/^#\$ -cwd -l mem=\([0-9]*\)G.*/\1/p' "$d/.command.run")
     printf "%s\t%s\t%s\t%s\n" "$k" "$d" "${pe:-1}" "${mem:-8}"
-  done < /tmp/recall5_rows.tsv | awk -F'\t' -v OFS='\t' '{print NR, $0}' >> "$M"
+  done < "$R/recall5_rows.tsv" | awk -F'\t' -v OFS='\t' '{print NR, $0}' >> "$M"
   for c in $(awk -F'\t' 'NR>1{print $2"_"$4"_"$5}' "$M" | sort -u); do
     IFS=_ read -r k pe mem <<< "$c"
     { head -1 "$M"; awk -F'\t' -v k="$k" -v p="$pe" -v m="$mem" 'NR>1 && $2==k && $4==p && $5==m' "$M"; } > "$R/sub/${k}_${pe}_${mem}.tsv"

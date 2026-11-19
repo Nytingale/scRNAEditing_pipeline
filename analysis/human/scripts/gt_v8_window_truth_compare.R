@@ -7,7 +7,7 @@
 # among the KO-depleted sites (d_max >= t, all 12 types; a real ADAR site is A-to-G, a depleted site of
 # another type is an artifact).
 #   none       all pool sites
-#   mismatch   pass 1: removed if >= 2 mismatch types within w1 on its strand (truth's nomm_pass_pgp1, w1 = 200)
+#   mismatch   pass 1: removed if >= 2 mismatch types within w1 on its strand (truth's nomm_pass_pgp1, w1 per gate from nomm_w1_grid.tsv)
 #   clustered  pass 2 only: kept if >= 2 pool sites (itself + >= 1 other, any type) within w2 on its strand
 #   both       pass 1, then pass 2 among the pass-1 survivors (neighbours = survivors, so same type)
 # w2 searched over 20..200 at each t by the highest A-to-G share of the depleted sites (the w1 rule, frac_weight = 1);
@@ -22,7 +22,7 @@ PM <- file.path(Sys.getenv("SCRNA_DIR", "."), "human/pm")
 SUP <- file.path(PM, "gt_eval_v8", "truth", "support")
 DS <- c(t25 = 0.25, t50 = 0.50, t75 = 0.75)
 W_ON <- seq(20, 200, 20)
-W1 <- 200L
+W1G <- fread(file.path(SUP, "nomm_w1_grid.tsv"))[pgp1 == TRUE & chosen == TRUE, setNames(w1, gate)]
 
 t12 <- fread(file.path(SUP, "truth12_site_flags.tsv.gz"))[pgp1 == FALSE]
 
@@ -49,7 +49,7 @@ for (g in c("expected", "depth")) {
   u <- t12[gate == g]
   stopifnot(nrow(u) > 0)
   keep <- list(none = rep(TRUE, nrow(u)), mismatch = u$nomm_pass_pgp1)
-  wsel <- list(none = NA, mismatch = W1)
+  wsel <- list(none = NA, mismatch = W1G[[g]])
   for (ps in c("clustered", "both")) {
     base <- if (ps == "clustered") rep(TRUE, nrow(u)) else u$nomm_pass_pgp1
     pool <- u[base, .(chr, pos, strand)]
@@ -77,7 +77,9 @@ for (g in c("expected", "depth")) {
   stopifnot(identical(mg[t == "t50", n_kept], m$n_kept), identical(mg[t == "t50", n_ag], m$n_ag))
   mg[, ag_pct := 100 * n_ag / pmax(n_kept, 1)]
   mg[, chosen := w == w[which.max(ag_pct)], by = t]
-  stopifnot(all(mg[chosen == TRUE, w] == m[chosen == TRUE, w1]))
+  if (!all(mg[chosen == TRUE, w] == m[chosen == TRUE, w1]))
+    message("NOTE ", g, ": best w1 by t = ", paste(mg[chosen == TRUE, paste0(t, ":", w)], collapse = " "),
+            " (truth uses ", m[chosen == TRUE, w1], ", chosen at t50)")
   grid[[paste(g, "mismatch")]] <- mg
   for (st in names(keep)) for (tn in names(DS)) {
     dep <- u$d_max >= DS[[tn]]

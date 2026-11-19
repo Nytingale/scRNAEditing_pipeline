@@ -3,7 +3,7 @@
 # Runs one R or bash analysis step as an SGE job from the project root (Rscript of the scRNAEditing env).
 #   qsub [-pe threaded N] [-l h_vmem=..] [-hold_jid ..] -N name human/pm/scripts/rjob_v8.sh human/scripts/x.R args
 #$ -S /bin/bash
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/

@@ -9,7 +9,7 @@
 # per_chrom: file, chr, rows, refN rows. A chromosome is "broken" if >= 99% of its rows have REF = N.
 #$ -S /bin/bash
 #$ -N bcf_refN
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -l h_vmem=4G
 #$ -l h_rt=12:00:00

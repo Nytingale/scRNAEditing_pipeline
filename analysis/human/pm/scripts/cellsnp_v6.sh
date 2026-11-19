@@ -19,7 +19,7 @@
 # Modes: manifest | call (array) | filter (array, CLASS=hi|mid|lo) | rank | submit
 #$ -S /bin/bash
 #$ -N cellsnp_v6
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/

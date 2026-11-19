@@ -9,7 +9,7 @@
 # Output: gt_eval_v8/replicates/scoring/{rediportal,ko}_<strategy>/, gt_eval_v8/replicates/summary/
 #$ -S /bin/bash
 #$ -N rep_score8
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/
@@ -24,6 +24,8 @@ RR=$V8/replicates
 RS=${CONDA_ENVS:-/opt/conda/envs}/scRNAEditing/bin/Rscript
 cd "$B"
 unset GT_UNIT_KEEP
+# headline per-unit rule (scoring_pwcov); the pooled scores come from REPL_SCN (default scoring_pwcov)
+export GT_UNIT_RULE=${GT_UNIT_RULE:-gate_cov}
 [ -s "$RR/results_k2_arm/.done" ] || { $RS human/scripts/replicates_kfilter_v8.R && touch "$RR/results_k2_arm/.done"; }
 mkdir -p "$RR/_empty"
 for s in ${STRATS:-k2 k3 k4 jacusa2rep}; do

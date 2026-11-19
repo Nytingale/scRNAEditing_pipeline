@@ -12,7 +12,7 @@
 #   then: Rscript human/scripts/gt_v8_sweep_rank_compare.R
 #$ -S /bin/bash
 #$ -N gt_sweep_rank
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/

@@ -1,5 +1,6 @@
 # ============================================================================
 # GTDEF_v8_m_null_panels.R   (2026-10-18)
+# 2026-11-16: the A-to-I group label is taken from zf (v9: "A-to-G and T-to-C candidate sites").
 # Panel builders for the empirical check of the m = 3 gate, shared by GTDEF_gtdefinition_plot.R (Figure 2 e-f,
 # GTDEF_v8_informative_ko) and GTDEF_v8_m_null_check_plot.R (standalone copy and source data).
 #   m_null_zero_panel(z)    report/pm_gt/GTDEF_v8_m_null_zero.tsv
@@ -10,6 +11,9 @@ M_NULL_XMAX = 8; M_NULL_YMIN = 1e-3
 
 m_null_zero_panel = function(zf, base_size) {
   zf = as.data.frame(zf)
+  ag_lab = setdiff(unique(zf$grp), names(M_NULL_COL)[1])
+  stopifnot(length(ag_lab) == 1)
+  M_NULL_COL = setNames(M_NULL_COL, c(names(M_NULL_COL)[1], ag_lab))
   zf$grp = factor(zf$grp, levels = names(M_NULL_COL))
   zf$lo = pmax(zf$lo, M_NULL_YMIN)
   M_NULL_KO = c(ADAR1 = "ADAR1 KO", ADAR2 = "ADAR2 KO")
@@ -37,7 +41,7 @@ m_null_zero_panel = function(zf, base_size) {
     scale_x_continuous(breaks = 0:M_NULL_XMAX) +
     coord_cartesian(xlim = c(0, M_NULL_XMAX), ylim = c(M_NULL_YMIN, 1)) +
     labs(x = "m = expected edited KO reads\n(KO coverage \u00D7 NTC allele fraction)",
-         y = "Sites with 0 variant reads\nin the KO (%)", title = "Sites with no variant reads in the KO: non-AG/TC vs A-to-G") +
+         y = "Sites with 0 variant reads\nin the KO (%)", title = paste0("Sites with no variant reads in the KO: non-AG/TC vs ", sub(" candidate sites$", "", ag_lab))) +
     guides(colour = guide_legend(ncol = 1, keywidth = unit(2.2, "lines"))) +
     theme_manuscript(base_size = base_size, facets = TRUE) + grid_both +
     theme(legend.position = "bottom", plot.title = element_text(hjust = 0.5, face = "bold"))

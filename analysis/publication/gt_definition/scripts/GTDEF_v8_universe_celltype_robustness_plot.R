@@ -26,6 +26,7 @@ af <- as_tibble(read_part(STEM, "c_af_hist"))
 kr <- as_tibble(read_part(STEM, "d_ko_response"))
 dn <- read_part(STEM, "e_celltype")
 sw <- read_part(STEM, "f_rank_rho")
+sw[, p := spearman_p_rho(rho, as.integer(Sys.getenv("GT_N_CONFIG", "76")))]
 
 GATE_COL <- c(expected = "#0072B2", depth = "#009E73")
 gate_scale <- function(aes = "colour")
@@ -97,16 +98,16 @@ p_dn <- ggplot(dn, aes(y, colour = Truth, fill = Truth)) +
 # f-g: ranking under one-step threshold moves
 sw_row <- function(p, ylab, x_text)
   p + facet_grid(. ~ Axis, scales = "free_x", space = "free_x", labeller = label_wrap_gen(width = 14)) +
-    scale_x_discrete(labels = function(x) sub("^[a-z_]+ ", "", x)) + gate_scale() + labs(x = NULL, y = ylab) +
+    scale_x_discrete(labels = function(x) sub("^[a-z_]+ ", "", x), expand = expansion(add = 1)) + gate_scale() + labs(x = NULL, y = ylab) +
     theme_manuscript(base_size = 13, facets = TRUE) + grid_y + theme(panel.spacing.x = unit(0.9, "lines")) +
     (if (!x_text) theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) else theme())
 p_sw_f <- sw_row(ggplot(sw, aes(x, rho, colour = g, group = g)) +
                    geom_line(linewidth = 0.8) + geom_point(size = 2.2) +
                    geom_point(data = sw[centre == TRUE], shape = 21, size = 3.8, stroke = 1.1, fill = NA, colour = "black") +
-                   geom_text(data = sw[centre == FALSE], aes(label = sprintf("%.3f", rho),
-                             vjust = fifelse(gate == "depth", 1.8, -0.8)), size = 5, show.legend = FALSE,
+                   geom_text(data = sw[centre == FALSE], aes(label = sprintf("%.3f\n%s", rho, p_lab(p)),
+                             vjust = fifelse(gate == "depth", 1.25, -0.35)), size = 3.5, lineheight = 0.9, show.legend = FALSE,
                              colour = c(expected = "#003F62", depth = "#00573F")[sw[centre == FALSE]$gate]) +
-                   scale_y_continuous(limits = c(0, 1.08), breaks = seq(0, 1, 0.25)),
+                   scale_y_continuous(limits = c(0, 1.45), breaks = seq(0, 1, 0.25)) + coord_cartesian(ylim = c(0, 1.45), clip = "off"),
                  "Spearman's \u03C1 with the\nchosen-truth ranking", x_text = FALSE) +
   theme(legend.position = "top") + guides(colour = guide_legend(nrow = 1))
 p_sw_g <- sw_row(ggplot(sw, aes(x, centre_top_rank, colour = g, group = g)) +
@@ -137,7 +138,7 @@ r2 <- patchwork::wrap_plots(patchwork::free(big(p1b + inside(0.98, 0.03)) +
 fig_ue <- patchwork::wrap_plots(r1, r2, big(p_sw_f, x_text = FALSE) + labs(y = "Spearman's \u03C1 with\nchosen ranking"),
                                 big(p_sw_g) + labs(y = "Rank of chosen\ntop configuration") +
                                   theme(axis.text.x = element_text(size = UE_TXT - 2)), ncol = 1,
-                                heights = c(1, 1.2, 0.75, 0.55)) +
+                                heights = c(1, 1.1, 0.75, 0.45)) +
   patchwork::plot_annotation(tag_levels = list(c("a", "c", "d", "b", "e", "f", "g"))) &
   theme(plot.tag = element_text(face = "bold", size = 26))
-save_figure_sd(fig_ue, STEM, width = 16, height = 21, parts = PARTS, grid = "y", script = SCRIPT)
+save_figure_sd(fig_ue, STEM, width = 16, height = 17, parts = PARTS, grid = "y", script = SCRIPT)

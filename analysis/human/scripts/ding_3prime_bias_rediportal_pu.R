@@ -10,8 +10,9 @@
 #   sequenced  equal sequencing effort: the platform with more sequenced (primary, before deduplication) reads is
 #              binomially thinned by the ratio of sequenced reads (10x 473.8 M vs Smart-seq2 PBMC1 426.7 M)
 #   processed  equal reads after each platform's preprocessing (read_counts.tsv of the BAM each pileup came from)
-#   subsampled X10=x10us20261024 SS2=ss2p1ds<seed>: the pipeline's deduplicated BAMs subsampled to exactly
-#              215,322,584 reads each (Smart-seq2 as whole proper pairs; ding_ss2_dedup_subsample.sh), so no thinning
+#   subsampled X10=x10ms20261024 SS2=ss2p1dsm<seed>: the deduplicated BAMs (10x UMI-aware MarkDuplicates, Smart-seq2
+#              coordinate) subsampled to exactly 217,323,582 reads each (Smart-seq2 as whole proper pairs;
+#              ding_ss2_dedup_subsample.sh), so no thinning. Earlier umi_tools pair: X10=x10us20261024 SS2=ss2p1ds<seed>
 #   covered : coverage >= 10;   edited : coverage >= 10 and >= 3 edited reads (as in the other analyses) (REDIportal Ed base on the site's strand;
 #   pileups are unstranded and keep A/T reference positions with >= 10 reads)
 # Region (REDIportal Func.refGene) and genomic distance to the nearest RefSeq transcript 3' end on the site's strand.
@@ -29,9 +30,11 @@ SEED <- 20261021L
 set.seed(SEED)
 X10 <- Sys.getenv("X10", "x10u"); SS2 <- Sys.getenv("SS2", "ss2p1"); DEPTH <- Sys.getenv("DEPTH", "sequenced")
 SUB_SEEDS <- c(20261024L, 20261025L, 20261026L)
-stopifnot(X10 %in% c("x10", "x10u", "x10us20261024"), SS2 %in% c("ss2p1", "ss2p1d", paste0("ss2p1ds", SUB_SEEDS)),
+stopifnot(X10 %in% c("x10", "x10u", "x10us20261024", "x10ms20261024"),
+          SS2 %in% c("ss2p1", "ss2p1d", paste0("ss2p1ds", SUB_SEEDS), paste0("ss2p1dsm", SUB_SEEDS)),
           DEPTH %in% c("sequenced", "processed", "subsampled"),
-          (DEPTH == "subsampled") == grepl("^ss2p1ds", SS2), (DEPTH == "subsampled") == grepl("^x10us", X10))
+          (DEPTH == "subsampled") == grepl("^ss2p1ds", SS2), (DEPTH == "subsampled") == grepl("^x10[um]s", X10),
+          grepl("^x10ms", X10) == grepl("^ss2p1dsm", SS2))
 PREFIX <- paste("rp", X10, SS2, DEPTH, sep = "_")
 
 PLAT_BAM <- c(x10 = "jzlxv3/wasp_refbias/merged_all.bam", x10u = "jzlxv3/results_v8/PBMC1/02_dedup/PBMC1_umiDup.bam",
@@ -43,10 +46,12 @@ SEQ_BAM <- c(x10 = "x10", x10u = "x10", ss2p1 = "ss2p1", ss2p1d = "ss2p1")
 rc <- fread(file.path(OUT, "read_counts.tsv"))
 n_reads <- function(p) rc[bam == file.path(H, PLAT_BAM[[p]]), reads_primary]
 if (DEPTH == "subsampled") {
-  n_10x <- fread(file.path(H, "jzlxv3/results_v8/PBMC1/02_dedup/subsample",
-                           sprintf("PBMC1_umiDup_sub%s.count", sub("x10us", "", X10))))$reads_primary
-  n_ss2 <- fread(file.path(H, "jzlss2/results_v8/PBMC1/02_dedup/subsample",
-                           sprintf("PBMC1_rmDup_sub%s.count", sub("ss2p1ds", "", SS2))))$reads_primary
+  md <- grepl("^x10ms", X10)
+  n_10x <- fread(file.path(H, if (md) "jzlxv3/02_bams_umimd/subsample" else "jzlxv3/results_v8/PBMC1/02_dedup/subsample",
+                           sprintf(if (md) "PBMC1_umiMd_sub%s.count" else "PBMC1_umiDup_sub%s.count",
+                                   sub("x10[um]s", "", X10))))$reads_primary
+  n_ss2 <- fread(file.path(H, "jzlss2/results_v8/PBMC1/02_dedup", if (md) "subsample_umimd" else "subsample",
+                           sprintf("PBMC1_rmDup_sub%s.count", sub("ss2p1dsm?", "", SS2))))$reads_primary
   stopifnot(n_10x == n_ss2)
 } else {
   n_10x <- n_reads(if (DEPTH == "sequenced") SEQ_BAM[[X10]] else X10)

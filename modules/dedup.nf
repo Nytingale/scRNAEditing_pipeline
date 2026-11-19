@@ -31,7 +31,7 @@ def dedup_per_well_script(bam, chrom, main_chroms, cell_tag, cpus, out) {
             samtools view -h _in.bam | awk '/^@/ || \$0 !~ /CB:Z:-/' | samtools view -b -o _clean.bam -
             mv _clean.bam _in.bam
         fi
-        if [ "${out.endsWith('_umiDup.bam')}" = "true" ]; then   # UB:Z:- = uncorrectable UMI (STARsolo): cannot be UMI-deduplicated
+        if [ "${out.endsWith('_umiDup.bam') || out.endsWith('_umiMd.bam')}" = "true" ]; then   # UB:Z:- = uncorrectable UMI (STARsolo): cannot be UMI-deduplicated
             samtools view -h _in.bam | awk '/^@/ || \$0 !~ /\\tUB:Z:-(\\t|\$)/' | samtools view -b -o _clean.bam -
             mv _clean.bam _in.bam
         fi
@@ -282,7 +282,7 @@ process UMI_DEDUP_CHROM {
 
     dedup_unit() {
         umi_tools dedup --per-cell --cell-tag=${cell_tag} --umi-tag=UB \\
-            --extract-umi-method=tag --method=unique \\
+            --extract-umi-method=tag --method=unique --random-seed=${params.umi_seed} \\
             -I "\$1" -S "\$2" --log="\${2%.bam}.log"
     }
     ${dedup_per_well_script(bam, chrom, main_chroms, cell_tag, task.cpus, out)}
@@ -315,6 +315,88 @@ process UMI_DEDUP_GATHER {
     N=\$(samtools view -c ${meta.id}_umiDup.bam)
     [ "\$N" -eq "\$SUM" ] || { echo "ERROR: merged \$N reads != sum of pieces \$SUM" >&2; exit 1; }
     echo "UMI dedup ${meta.id}: \$N reads from \$(echo ${bl} | wc -w) chromosome pieces"
+    """
+}
+
+
+/*
+ * UMI-aware MarkDuplicates (--dedup umimd): the grouping of UMI_DEDUP_CHROM (cell, UMI, 5' position, strand,
+ * exact UMI; reads with UB:Z:- or without a cell tag dropped), but the kept read is MarkDuplicates' highest
+ * base-quality sum instead of umi_tools' pick. XU = <cell tag><UB> is the MarkDuplicates barcode
+ * (--BARCODE_TAG takes one tag; DNA letters only, so no separator) and stays on the output reads.
+ */
+process UMIMD_CHROM {
+    tag { "${meta.id}:${chrom}" }
+    label 'process_medium'
+
+    input:
+    tuple val(meta), path(bam), path(bai), val(chrom)
+    path main_chroms
+
+    output:
+    tuple val(meta), val(chrom), path("${meta.id}__${chrom}_umiMd.bam"), path("${meta.id}__${chrom}_umiMd_metrics.txt"), emit: bam
+
+    script:
+    def cell_tag = params.dedup_cell_tag ?: 'CR'
+    def out = "${meta.id}__${chrom}_umiMd.bam"
+    def met = "${meta.id}__${chrom}_umiMd_metrics.txt"
+    def heap_gb = Math.max(1, ((task.memory.toGiga() * 0.8) / task.cpus).intValue())
+    """
+    #!/bin/bash
+    set -euo pipefail
+
+    HAS_UB=\$(nf_head.sh 1000 samtools view ${bam} | grep -c "UB:Z:" || true)
+    if [ "\$HAS_UB" -eq 0 ]; then
+        echo "ERROR: UMI-aware MarkDuplicates requires the UB (corrected UMI) tag but none found." >&2
+        echo "Use --dedup coordinate or --dedup none instead." >&2
+        exit 1
+    fi
+
+    dedup_unit() {
+        samtools view -h "\$1" | awk -v ct="${cell_tag}:Z:" 'BEGIN { OFS = "\\t" } /^@/ { print; next }
+            { cb = ""; ub = ""
+              for (i = 12; i <= NF; i++) { t = substr(\$i, 1, 5); if (t == "UB:Z:") ub = substr(\$i, 6); else if (t == ct) cb = substr(\$i, 6) }
+              if (ub == "" || ub == "-" || cb == "" || cb == "-") next
+              print \$0, "XU:Z:" cb ub }' | samtools view -b -o "\${2%.bam}.xu.bam" -
+        gatk --java-options "-Xmx${heap_gb}G" MarkDuplicates \\
+            -I "\${2%.bam}.xu.bam" -O "\$2" -M "\${2%.bam}.metrics.txt" \\
+            --BARCODE_TAG XU --REMOVE_DUPLICATES true \\
+            --QUIET true --VERBOSITY WARNING
+        rm -f "\${2%.bam}.xu.bam"
+    }
+    ${dedup_per_well_script(bam, chrom, main_chroms, cell_tag, task.cpus, out)}
+    cat _dd/*.metrics.txt > ${met} 2>/dev/null || : > ${met}
+    rm -rf _dd
+    """
+}
+
+// Checks that no read is lost in the merge; per-chromosome Picard metrics are concatenated.
+process UMIMD_GATHER {
+    tag { "${meta.id}" }
+    label 'process_medium'
+    publishDir { "${params.outdir}/${meta.id}/02_dedup" }, mode: 'copy'
+
+    input:
+    tuple val(meta), path(bams), path(metrics)
+
+    output:
+    tuple val(meta), path("${meta.id}_umiMd.bam"), path("${meta.id}_umiMd.bam.bai"), emit: bam
+    tuple val(meta), path("${meta.id}_umiMd_metrics.txt"), emit: metrics
+
+    script:
+    def bl = (bams instanceof List ? bams : [bams]).collect { it.name }.sort().join(' ')
+    def ml = (metrics instanceof List ? metrics : [metrics]).collect { it.name }.sort().join(' ')
+    """
+    #!/bin/bash
+    set -euo pipefail
+    SUM=0
+    for b in ${bl}; do SUM=\$((SUM + \$(samtools view -c \$b))); done
+    samtools merge -@ ${task.cpus} -c -p -f -o ${meta.id}_umiMd.bam ${bl}
+    samtools index -@ ${task.cpus} ${meta.id}_umiMd.bam
+    N=\$(samtools view -c ${meta.id}_umiMd.bam)
+    [ "\$N" -eq "\$SUM" ] || { echo "ERROR: merged \$N reads != sum of pieces \$SUM" >&2; exit 1; }
+    cat ${ml} > ${meta.id}_umiMd_metrics.txt
+    echo "UMI-aware MarkDuplicates ${meta.id}: \$N reads from \$(echo ${bl} | wc -w) chromosome pieces"
     """
 }
 

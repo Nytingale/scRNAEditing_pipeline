@@ -12,7 +12,7 @@
 #   not multiallelic third allele on that orientation < 3 reads or < 5% of depth (truth rule)
 # v8 truth positions are disjoint by construction (PGP1 positions are removed from v8).
 # Input : pgp1_snps/PGP1_hu43860C_hg38_snvs.vcf.gz, gt_eval_v6/spectrum12/{positions_noSNP.bed,pileups/}
-# Output: gt_eval_v8/germline/
+# Output: gt_eval_v8/germline/ (GT_GERM_DIR to override; GT_GERM_TRUTH: the truth sites checked to be disjoint)
 #   germline_sites.tsv.gz   set, site, chr, pos, genomic_ref, genomic_alt, read_strand, gt, ntc_cov, ntc_alt,
 #                           ntc_vaf, ko1_vaf, ko2_vaf (merged KO arms, same orientation; NA if cov < 10)
 #   germline_counts.tsv
@@ -20,7 +20,7 @@
 suppressPackageStartupMessages(library(data.table))
 PM <- file.path(Sys.getenv("SCRNA_DIR", "."), "human/pm")
 SP <- file.path(PM, "gt_eval_v6", "spectrum12")
-OUT <- file.path(PM, "gt_eval_v8", "germline"); dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
+OUT <- Sys.getenv("GT_GERM_DIR", file.path(PM, "gt_eval_v8", "germline")); dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 fr <- fread(file.path(PM, "gt_eval_v6", "FROZEN_RULES.tsv")); P <- setNames(fr$value, fr$parameter)
 K <- as.numeric(P[["min_edit_reads"]]); E <- 0.05; MIN_COV <- as.numeric(P[["min_cov"]])
 MIN_THIRD_READS <- 3; MIN_THIRD_FRAC <- 0.05
@@ -58,7 +58,7 @@ cnt <- data.table(step = c("PGP1 SNVs (all)", "PASS, A>G or T>C", "not dbSNP com
 g <- g[cov >= MIN_COV & alt_n >= K & alt_n / cov >= E & !multi]
 g <- merge(g, setnames(ko[[1]], "vaf", "ko1_vaf"), by = c("chr", "pos"), all.x = TRUE)
 g <- merge(g, setnames(ko[[2]], "vaf", "ko2_vaf"), by = c("chr", "pos"), all.x = TRUE)
-tr <- fread(file.path(PM, "gt_eval_v8", "truth", "gt_v7_truth_sites.tsv.gz"), select = "site")
+tr <- fread(Sys.getenv("GT_GERM_TRUTH", file.path(PM, "gt_eval_v8", "truth", "gt_v7_truth_sites.tsv.gz")), select = "site")
 g[, site := paste0(chr, ":", pos)]
 stopifnot(!any(g$site %chin% tr$site))
 out <- g[, .(set = "germline", site, chr, pos, genomic_ref = ref, genomic_alt = alt, read_strand, gt,

@@ -9,11 +9,17 @@
 #                <prefix>_{pre100.tsv.gz,filtered.txt.gz,summary.txt,stepwise.tsv,metrics.tsv,run.log}
 #   status    gt_eval_v8/nomm/status/<tier>__<prefix>.tsv  tier, dest, exit, best_w1, best_w2, n_AG_pre100
 #
+# Since 2026-10-20 the v8 work dirs run downstream_filter_v8.R with --clustered_filter 0, so each replay also sets
+# the clustered pass explicitly (REPLAY, default clustered):
+#   REPLAY=clustered  --mismatch_window_filter 0 --clustered_filter 1 -> results_*_v8_nomm, status_cl/, runs_clustered/
+#   REPLAY=both       --mismatch_window_filter 1 --clustered_filter 1 (joint w1 x w2) -> results_*_v8_both,
+#                     status_both/, runs_both/ (state "both" of run_gt_v8_rescore.sh)
+#
 #   STAGE=manifest bash nomm_rerun_v8.sh
 #   n=$(( ($(wc -l < gt_eval_v8/nomm/manifest.tsv) - 1 + 9) / 10 )); qsub -t 1-$n -tc 80 -v CHUNK=10 nomm_rerun_v8.sh
 #$ -S /bin/bash
 #$ -N nomm_v8
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/
@@ -36,7 +42,7 @@ if [ "$STAGE" = "manifest" ]; then
   declare -A WORK=([arm]=work_gt_v8 [sample]=work_gt_persample_v8 [celltype]=work_gt_celltype_v8)
   for t in arm sample celltype; do
     r=$PM/${RES[$t]}
-    find "$r" -path '*NTC_ctrl*/04_filtered/*' -name '*_pre100.tsv.gz' | awk -F/ '{print $NF"\t"$0}' | sort > /tmp/nomm8_pub_$t.tsv
+    find "$r" -path '*NTC_ctrl*/04_filtered/*' -name '*_pre100.tsv.gz' | awk -F/ '{print $NF"\t"$0}' | sort > ${SCRNA_DIR:-.}/tmp/nomm8_pub_$t.tsv
     awk -F'\t' 'NR==1{for(i=1;i<=NF;i++)h[$i]=i;next}
       $h["process"]~/^DOWNSTREAM_R/ && $h["tag"]~/(^|_)NTC_ctrl(__[^:]*)?:/ && $h["status"]~/COMPLETED|CACHED/ {print $h["hash"]}' \
       "$r/pipeline_trace.txt" | sort -u |
@@ -44,9 +50,9 @@ if [ "$STAGE" = "manifest" ]; then
       d=$(ls -d "$PM/${WORK[$t]}/$h"*)
       p=$(grep -oP -- '--output_pre100 \K\S+' "$d/.command.sh")
       printf "%s\t%s\n" "$p" "$d"
-    done | sort > /tmp/nomm8_task_$t.tsv
-    n_t=$(wc -l < /tmp/nomm8_task_$t.tsv); n_p=$(wc -l < /tmp/nomm8_pub_$t.tsv)
-    join -t $'\t' /tmp/nomm8_task_$t.tsv /tmp/nomm8_pub_$t.tsv | awk -F'\t' -v t=$t '{print t"\t"$2"\t"$3}' >> "$M"
+    done | sort > ${SCRNA_DIR:-.}/tmp/nomm8_task_$t.tsv
+    n_t=$(wc -l < ${SCRNA_DIR:-.}/tmp/nomm8_task_$t.tsv); n_p=$(wc -l < ${SCRNA_DIR:-.}/tmp/nomm8_pub_$t.tsv)
+    join -t $'\t' ${SCRNA_DIR:-.}/tmp/nomm8_task_$t.tsv ${SCRNA_DIR:-.}/tmp/nomm8_pub_$t.tsv | awk -F'\t' -v t=$t '{print t"\t"$2"\t"$3}' >> "$M"
     n_j=$(awk -F'\t' -v t=$t '$1==t' "$M" | wc -l)
     echo "$t: tasks=$n_t published=$n_p joined=$n_j"
     [ "$n_t" -eq "$n_p" ] && [ "$n_j" -eq "$n_t" ] || { echo "manifest mismatch for $t" >&2; exit 1; }
@@ -59,12 +65,20 @@ export PATH=${CONDA_ENVS:-/opt/conda/envs}/scRNAEditing/bin:$PATH
 CHUNK=${CHUNK:-10}
 first=$(( (SGE_TASK_ID - 1) * CHUNK + 2 ))
 last=$(( first + CHUNK - 1 ))
-mkdir -p "$P/status" "$P/runs"
+REPLAY=${REPLAY:-clustered}
+case $REPLAY in
+  clustered) SFX=_nomm; SD=$P/status_cl
+             SEDX='s/--mismatch_window_filter 1/--mismatch_window_filter 0/; s/--clustered_filter 0/--clustered_filter 1/' ;;
+  both)      SFX=_both; SD=$P/status_both
+             SEDX='s/--clustered_filter 0/--clustered_filter 1/' ;;
+  *) echo "REPLAY must be clustered or both" >&2; exit 2 ;;
+esac
+mkdir -p "$SD" "$P/runs_$REPLAY"
 sed -n "${first},${last}p" "$M" | while IFS=$'\t' read -r tier wd pub; do
   base=$(basename "$pub" _pre100.tsv.gz)
-  st=$P/status/${tier}__${base}.tsv
+  st=$SD/${tier}__${base}.tsv
   if [ -s "$st" ] && [ "$(cut -f3 "$st")" = 0 ]; then echo "skip (done): $tier $base"; continue; fi
-  run=$P/runs/$tier/$base
+  run=$P/runs_$REPLAY/$tier/$base
   rm -rf "$run"; mkdir -p "$run"
   for e in "$wd"/*; do
     n=$(basename "$e")
@@ -72,12 +86,13 @@ sed -n "${first},${last}p" "$M" | while IFS=$'\t' read -r tier wd pub; do
     elif [ -d "$e" ]; then mkdir -p "$run/$n"; cp -P "$e"/* "$run/$n/"
     fi
   done
-  grep -q -- '--mismatch_window_filter 1' "$wd/.command.sh" || { echo "no --mismatch_window_filter 1 in $wd" >&2; rc=2; }
-  sed 's/--mismatch_window_filter 1/--mismatch_window_filter 0/' "$wd/.command.sh" > "$run/run.sh"
+  grep -q -- '--mismatch_window_filter 1' "$wd/.command.sh" && grep -q -- '--clustered_filter 0' "$wd/.command.sh" ||
+    { echo "no --mismatch_window_filter 1 / --clustered_filter 0 in $wd" >&2; rc=2; }
+  sed "$SEDX" "$wd/.command.sh" > "$run/run.sh"
   ( cd "$run" && bash run.sh > run.log 2>&1 ); rc=${rc:-$?}
   rel=${pub#"$PM"/}
   res=${rel%%/*}
-  dest=$PM/${res}_nomm/$(dirname "${rel#*/}")
+  dest=$PM/${res}${SFX}/$(dirname "${rel#*/}")
   w1=NA; w2=NA; nag=NA
   if [ "$rc" -eq 0 ]; then
     mkdir -p "$dest"
@@ -91,6 +106,6 @@ sed -n "${first},${last}p" "$M" | while IFS=$'\t' read -r tier wd pub; do
     else : > "$dest/${base}_pre100.tsv.gz"; nag=0; fi
     rm -rf "$run"
   fi
-  printf "%s\t%s\t%s\t%s\t%s\t%s\n" "$tier" "$dest" "$rc" "${w1:-NA}" "${w2:-NA}" "$nag" > "$P/status/${tier}__${base}.tsv"
+  printf "%s\t%s\t%s\t%s\t%s\t%s\n" "$tier" "$dest" "$rc" "${w1:-NA}" "${w2:-NA}" "$nag" > "$st"
   unset rc
 done

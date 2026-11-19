@@ -2,9 +2,9 @@
 # =============================================================================
 # DING_3prime_bias_v5_source_data.R   (2026-10-24; split from human/scripts/ding_3prime_bias_fig_v5.R 2026-10-25)
 # Source data for response figure 16 (Reviewer 3, major 2: editing sites missed because of 3' bias).
-# Ding et al. human PBMC1, 10x Chromium 3' v3 vs full-length Smart-seq2, the pipeline's dedup BAMs (10x umiDup,
-# Smart-seq2 rmDup) subsampled to the same number of unique reads (215,322,584; Smart-seq2 as whole proper pairs,
-# seeds 20261024-26; 10x one read dropped, the same reads for every seed). REDIportal sites; covered = >= 10 reads,
+# Ding et al. human PBMC1, 10x Chromium 3' v3 vs full-length Smart-seq2, dedup BAMs (10x UMI-aware MarkDuplicates,
+# Smart-seq2 rmDup; 2026-11-14, was 10x umi_tools) subsampled to the same number of unique reads (217,323,582, all
+# 10x reads; Smart-seq2 as whole proper pairs, seeds 20261024-26). REDIportal sites; covered = >= 10 reads,
 # edited = covered and >= 3 variant reads. Smart-seq2 values = mean over seeds, ranges = min-max.
 # Gene-based regions of ding_3prime_bias_genebody.R (sites inside exactly one RefSeq gene on their strand).
 #   edited_by_region  edited sites per platform and region
@@ -14,7 +14,7 @@
 #   overlap_by_region edited sites found by Smart-seq2 only, both platforms or 10x only, per region of the site
 #                     annotation (rp_*_sites.tsv.gz; all edited sites, genic or not), mean / min / max over seeds
 # The linear-bin and other bin-width layouts are in human/scripts/_superseded/pre_split_2026-10-25/.
-# Input : human/jzlxv3/three_prime_bias/rp_x10us20261024_ss2p1ds<seed>_subsampled_{genebody_sites,sites}.tsv.gz
+# Input : human/jzlxv3/three_prime_bias/rp_x10ms20261024_ss2p1dsm<seed>_subsampled_{genebody_sites,sites}.tsv.gz
 # Output: publication/three_prime_bias/source_data/ding_3prime_bias_v5.<part>.tsv
 #         (drawn by DING_3prime_bias_v5_plot.R)
 # =============================================================================
@@ -30,7 +30,7 @@ PLAT <- names(cmap_3prime_platform)
 SEEDS <- 20261024:20261026
 GB_REG <- c("All genic sites", "5' UTR", "Coding exon", "3' UTR", "Intron", "Noncoding RNA")
 LOG_W <- 0.5
-stem <- function(s) file.path(IN, sprintf("rp_x10us20261024_ss2p1ds%d_subsampled", s))
+stem <- function(s) file.path(IN, sprintf("rp_x10ms20261024_ss2p1dsm%d_subsampled", s))
 
 gs <- rbindlist(lapply(SEEDS, function(s) fread(paste0(stem(s), "_genebody_sites.tsv.gz"))[!is.na(rel_3p)][, seed := s]))
 gs[, dist := round(rel_3p * gene_len)]

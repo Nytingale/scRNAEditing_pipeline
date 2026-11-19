@@ -6,7 +6,7 @@
 # Also refreshes the replicate k-filter sets (replicates_kfilter_v8.R reads the per-sample step-5 tables).
 #   bash human/pm/scripts/mmonly_swap_v8.sh   (or qsub, as mmonly_rescore_v8.sh does)
 #$ -S /bin/bash
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/

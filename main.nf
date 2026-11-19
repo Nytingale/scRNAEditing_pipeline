@@ -22,13 +22,16 @@ params.repeat_annots   = null    // Repeat annotations for AEI
 params.refseq_bed      = null    // RefSeq BED for strandedness inference
 params.main_chroms     = null    // One chromosome per line (null = all from BAM header)
 params.remap           = false   // Re-align with STARsolo
+params.solo_whitelist  = null    // --remap: cell-barcode whitelist overriding the platform default in assets/whitelists/
+params.solo_min_wl_fraction = 0.5 // --remap: stop if fewer sampled cell barcodes are on the whitelist (wrong chemistry); 0 = no check
 params.tso_clip        = true    // --remap: 10x 3' -> STAR --clipAdapterType CellRanger4 (5' TSO + 3' poly(A)); smartseq2 -> cutadapt 5' TSO trim on both mates
 params.tso_seq         = 'AAGCAGTGGTATCAACGCAGAGTACATGGG'
 params.tso_min_overlap = 5       // shortest TSO 3' end (ATGGG) trimmed at a read start
 params.tso_min_length  = 20      // drop pairs with a mate shorter than this after trimming
 params.cutadapt_conda  = "${projectDir}/envs/cutadapt.yml"  // or an existing env prefix
-params.dedup           = 'none,coordinate'  // Any of: none, coordinate, umi
+params.dedup           = 'none,coordinate'  // Any of: none, coordinate, umi, umimd (UMI-aware MarkDuplicates)
 params.dedup_cell_tag  = 'CR'          // 'CR' (raw, recommended) or 'CB' (corrected)
+params.umi_seed        = 8787          // umi_tools --random-seed (picks one read per UMI group at random when MAPQ ties)
 params.callers         = 'bcftools,reditools3,gatk,jacusa2'  // also: scallele, cellsnp
 params.bam_types       = 'sample,sampleRmDup,sampleUmiDup,recal,recalq20,goodCells,goodCellsRmDup,goodCellsUmiDup,annotated,annotatedRmDup,annotatedUmiDup,celltype,celltypeRmDup,celltypeUmiDup'
 // Each cell type becomes its own sample (id = <sample>__<celltype>) and runs the
@@ -45,6 +48,7 @@ params.clustered_filter = false
 params.min_cov         = 10
 params.strand_modes    = 'annotation'  // Any of: annotation, hybrid, caller
 params.strand_ambiguity_threshold = 0.3  // hybrid mode: read-strand ambiguity cutoff
+params.strandedness    = 'auto'  // auto (RSeQC infer_experiment.py), forward, reverse or unstranded; applies to every sample
 
 params.percell_analyses      = true    // Step 6; false avoids the memory-heavy SINTO_SPLIT_PERCELL
 params.percell_calling       = false   // Step 7
@@ -110,10 +114,13 @@ include { SINTO_EXTRACT_QC     as SINTO_GOOD_CELLS_UMIDUP   } from './modules/ce
 include { SINTO_EXTRACT_QC     as SINTO_ANNOTATED              } from './modules/celltype_split'
 include { SINTO_EXTRACT_QC     as SINTO_ANNOTATED_RMDUP        } from './modules/celltype_split'
 include { SINTO_EXTRACT_QC     as SINTO_ANNOTATED_UMIDDUP      } from './modules/celltype_split'
+include { SINTO_EXTRACT_QC     as SINTO_GOOD_CELLS_UMIMD       } from './modules/celltype_split'
+include { SINTO_EXTRACT_QC     as SINTO_ANNOTATED_UMIMD        } from './modules/celltype_split'
 include { SINTO_EXTRACT_CELLTYPE } from './modules/celltype_split'
 include { SINTO_EXTRACT_CELLTYPE as SINTO_CELLTYPE_PERLANE } from './modules/celltype_split'
 include { SINTO_EXTRACT_CELLTYPE as SINTO_CELLTYPE_RMDUP  } from './modules/celltype_split'
 include { SINTO_EXTRACT_CELLTYPE as SINTO_CELLTYPE_UMIDDUP } from './modules/celltype_split'
+include { SINTO_EXTRACT_CELLTYPE as SINTO_CELLTYPE_UMIMD  } from './modules/celltype_split'
 include { SINTO_SPLIT_PERCELL  } from './modules/celltype_split'
 include { SINTO_SPLIT_PERCELL as SINTO_SPLIT_PERCELL_DISC } from './modules/celltype_split'
 include { COMPUTE_GOOD_CELLS   } from './modules/goodcells'
@@ -121,6 +128,8 @@ include { MARKDUP_CHROM        } from './modules/dedup'
 include { MARKDUP_GATHER       } from './modules/dedup'
 include { UMI_DEDUP_CHROM      } from './modules/dedup'
 include { UMI_DEDUP_GATHER     } from './modules/dedup'
+include { UMIMD_CHROM          } from './modules/dedup'
+include { UMIMD_GATHER         } from './modules/dedup'
 include { MARKDUP_PERCELL_SS2  } from './modules/dedup'
 include { GATK_SPLITNCIGAR     } from './modules/gatk_preprocess'
 include { GATK_BQSR            } from './modules/gatk_preprocess'
@@ -208,7 +217,7 @@ workflow {
     if (!params.input)       { error "Please provide --input <samplesheet.csv>" }
     if (!params.genome_fasta){ error "Please provide --genome_fasta <ref.fa>" }
     if (!params.genome_gtf)  { error "Please provide --genome_gtf <genes.gtf>" }
-    def valid_dedup = ['none', 'coordinate', 'umi'] as Set
+    def valid_dedup = ['none', 'coordinate', 'umi', 'umimd'] as Set
     def requested_dedup = params.dedup.tokenize(',')
 
     if (toBool(params.percell_calling)) {
@@ -218,7 +227,7 @@ workflow {
     // ── Parse samplesheet (columns: SAMPLESHEET_SPEC.md) ────────────────
     // Optional columns not in the spec: count_matrix (10x matrix dir; default
     // <bam_prefix>_Solo.out/GeneFull/filtered), qc_barcodes (precomputed goodCells
-    // list), rmdup_bam / umidup_bam (prebuilt dedup BAMs, step 3b).
+    // list), rmdup_bam / umidup_bam / umimd_bam (prebuilt dedup BAMs, steps 3b-3c).
     // Rows sharing a sample_id are lanes of ONE sample and are merged before any
     // analysis. Distinct samples need distinct sample_ids: 10x barcodes are reused
     // across samples, so splitting a merged multi-sample BAM by barcode misassigns
@@ -279,7 +288,7 @@ workflow {
         .set { ch_qc_from_sheet }
     def invalid_dedup = requested_dedup.findAll { !(it in valid_dedup) }
     if (invalid_dedup) {
-        error "--dedup values must be from: none, coordinate, umi (got invalid: ${invalid_dedup.join(', ')})"
+        error "--dedup values must be from: none, coordinate, umi, umimd (got invalid: ${invalid_dedup.join(', ')})"
     }
 
     genome_fasta = file(params.genome_fasta, checkIfExists: true)
@@ -427,14 +436,22 @@ workflow {
         refseq_bed
     )
     ch_strandedness = INFER_STRANDEDNESS.out.strandedness
+    // A user-given --strandedness is used as given; RSeQC still runs and a mismatch is reported.
+    INFER_STRANDEDNESS.out.report.subscribe { m, rep ->
+        def txt  = rep.text
+        def inf  = (txt =~ /(?m)^Inferred: (\S+)/)
+        def given = (txt =~ /(?m)^Set by --strandedness: (\S+)/)
+        if (inf.find() && given.find() && inf.group(1) != given.group(1))
+            log.warn "${m.id}: --strandedness ${given.group(1)} differs from RSeQC infer_experiment.py (${inf.group(1)}); using ${given.group(1)}. See ${params.outdir}/${m.id}/00_qc/${m.id}_strandedness.txt"
+    }
 
     // ── Step 3: Generate all BAM type variants ──────────────────────────
     // Labeled channels [meta, bam, bai, bam_label]:
-    //                    none        coordinate (GATK)   umi (umi_tools)
-    //   sample:          sample      sampleRmDup         sampleUmiDup
-    //   goodCells:       goodCells   goodCellsRmDup      goodCellsUmiDup
-    //   annotated:       annotated   annotatedRmDup      annotatedUmiDup
-    //   celltype:        celltype    celltypeRmDup       celltypeUmiDup
+    //                    none        coordinate (GATK)   umi (umi_tools)     umimd (UMI-aware MarkDuplicates)
+    //   sample:          sample      sampleRmDup         sampleUmiDup        sampleUmiMd
+    //   goodCells:       goodCells   goodCellsRmDup      goodCellsUmiDup     goodCellsUmiMd
+    //   annotated:       annotated   annotatedRmDup      annotatedUmiDup     annotatedUmiMd
+    //   celltype:        celltype    celltypeRmDup       celltypeUmiDup      celltypeUmiMd
     //   recal / recalq20: coordinate dedup + BQSR, called at params.qual / 20
     //   recaldefault:    recal BAM with GATK defaults (GATK only)
     // A tier is built only if it is in --bam_types or is --percell_bam_type.
@@ -447,7 +464,8 @@ workflow {
         'sample', 'sampleRmDup', 'sampleUmiDup', 'recal', 'recalq20',
         'goodCells', 'goodCellsRmDup', 'goodCellsUmiDup',
         'annotated', 'annotatedRmDup', 'annotatedUmiDup',
-        'celltype', 'celltypeRmDup', 'celltypeUmiDup'
+        'celltype', 'celltypeRmDup', 'celltypeUmiDup',
+        'sampleUmiMd', 'goodCellsUmiMd', 'annotatedUmiMd', 'celltypeUmiMd'
     ]
     def unknown_bam_types = requested_bam_types.findAll { !(it in known_bam_types) }
     if (unknown_bam_types) {
@@ -470,6 +488,10 @@ workflow {
     if (need_umi && !('umi' in requested_dedup_strategies)) {
         error "bam_type(s) ${need_umi.join(', ')} need --dedup to include 'umi'"
     }
+    def need_umimd = wanted_types.findAll { it.endsWith('UmiMd') }
+    if (need_umimd && !('umimd' in requested_dedup_strategies)) {
+        error "bam_type(s) ${need_umimd.join(', ')} need --dedup to include 'umimd'"
+    }
     def wants_goodcells = wanted_types.any { it.startsWith('goodCells') }
     def tier_types = wanted_types.findAll { it.startsWith('goodCells') || it.startsWith('annotated') || it.startsWith('celltype') }
     if (toBool(params.split_by_celltype) && tier_types) {
@@ -483,7 +505,7 @@ workflow {
         ch_remap_mats = STARSOLO_ALIGN.out.solo_out
             .map { meta, solo -> [ meta.id, findSoloFiltered(solo) ] }
             .groupTuple()
-            .map { id, mats -> [ id, mats.findAll { it }.collect { it.toString() }.unique().join(',') ] }
+            .map { id, mats -> [ id, mats.findAll { it }.collect { it.toString() }.unique().sort().join(',') ] }
         ch_qc_input = ch_qc_from_sheet
             .map { meta, annot, called, qc, matrix_str, cells ->
                 [ meta.id, meta, annot, called, qc, cells ]
@@ -566,17 +588,32 @@ workflow {
         ch_umi_dedup = UMI_DEDUP_GATHER.out.bam.mix(ch_umi_route.prebuilt)
     }
 
+    // ── 3c'. UMI-aware MarkDuplicates BAMs (umimd) ──────────────────────
+    if ('umimd' in requested_dedup_strategies) {
+        ch_umimd_route = route_prebuilt.call(ch_base_bams, 'umimd_bam')
+        UMIMD_CHROM(ch_umimd_route.scatter.combine(Channel.fromList(dedup_chroms)), dedup_main)
+        UMIMD_GATHER(scatter_gather_key.call(UMIMD_CHROM.out.bam))
+        ch_umimd_dedup = UMIMD_GATHER.out.bam.mix(ch_umimd_route.prebuilt)
+    }
+
     ch_sampleRmDup  = ('coordinate' in requested_dedup_strategies)
                 ? ch_coord_dedup.map { meta, bam, bai -> [ meta, bam, bai, 'sampleRmDup' ] }
                 : Channel.empty()
     ch_sampleUmiDup = ('umi' in requested_dedup_strategies)
                 ? ch_umi_dedup.map { meta, bam, bai -> [ meta, bam, bai, 'sampleUmiDup' ] }
                 : Channel.empty()
+    ch_sampleUmiMd  = ('umimd' in requested_dedup_strategies)
+                ? ch_umimd_dedup.map { meta, bam, bai -> [ meta, bam, bai, 'sampleUmiMd' ] }
+                : Channel.empty()
 
     // ── 3d. Recalibrated BAMs (coordinate dedup + SplitNCigar + BQSR) ──
     // main_chroms keeps GATK off extra / renamed scaffolds, which abort it.
     main_chroms = params.main_chroms ? file(params.main_chroms) : file('NO_FILE')
     def needs_recal = ('recal' in requested_bam_types || 'recalq20' in requested_bam_types)
+    if (needs_recal && !params.known_sites_vcf) {
+        log.warn "recal / recalq20 requested without --known_sites_vcf (GATK BQSR needs known sites); these bam types are skipped"
+        needs_recal = false
+    }
     if (needs_recal && 'coordinate' in requested_dedup_strategies) {
         GATK_SPLITNCIGAR(ch_coord_dedup, genome_fasta, main_chroms)
         GATK_BQSR(
@@ -610,7 +647,7 @@ workflow {
     // Build the cell-type tier only when asked: celltype_split.nf errors on
     // barcodes assigned to >1 cell type, which merged multi-sample BAMs always
     // have (10x barcodes are reused across samples).
-    def wants_celltype = ['celltype', 'celltypeRmDup', 'celltypeUmiDup'].any { wants.call(it) }
+    def wants_celltype = ['celltype', 'celltypeRmDup', 'celltypeUmiDup', 'celltypeUmiMd'].any { wants.call(it) }
     ch_ct_source = wants_celltype ? ch_raw_barcode : Channel.empty()
     if (!wants_celltype) {
         log.info "No celltype bam_type requested — skipping the cell-type split tier."
@@ -685,6 +722,24 @@ workflow {
         ch_goodCellsUmiDup = Channel.empty()
     }
 
+    // goodCells + UMI-aware MarkDuplicates
+    if ('umimd' in requested_dedup_strategies) {
+        ch_umimd_with_called = ch_umimd_dedup
+            .map { meta, bam, bai -> [ meta.id, meta, bam, bai ] }
+            .combine(
+                ch_raw_barcode.map { meta, bam, bai, annot, called_bc, cell_ids -> [ meta.id ] },
+                by: 0
+            )
+            .combine(ch_good_bc, by: 0)
+            .map { id, meta, bam, bai, bc -> [ meta, bam, bai, bc, 'goodCellsUmiMd' ] }
+        SINTO_GOOD_CELLS_UMIMD(gate.call(['goodCellsUmiMd'], ch_umimd_with_called))
+        ch_goodCellsUmiMd = SINTO_GOOD_CELLS_UMIMD.out.bam.map { meta, bam, bai ->
+            [ meta, bam, bai, 'goodCellsUmiMd' ]
+        }
+    } else {
+        ch_goodCellsUmiMd = Channel.empty()
+    }
+
     // ── 3f. annotated — filtered to annotation barcodes ────────────────
     ch_for_annot_sinto = ch_raw_barcode.map { meta, bam, bai, annot, called_bc, cell_ids ->
         [ meta, bam, bai, annot, 'annotated' ]
@@ -744,6 +799,23 @@ workflow {
         ch_annotatedUmiDup = Channel.empty()
     }
 
+    // annotated + UMI-aware MarkDuplicates
+    if ('umimd' in requested_dedup_strategies) {
+        ch_umimd_with_annot = ch_umimd_dedup
+            .map { meta, bam, bai -> [ meta.id, meta, bam, bai ] }
+            .combine(
+                ch_raw_barcode.map { meta, bam, bai, annot, called_bc, cell_ids -> [ meta.id, annot ] },
+                by: 0
+            )
+            .map { id, meta, bam, bai, annot -> [ meta, bam, bai, annot, 'annotatedUmiMd' ] }
+        SINTO_ANNOTATED_UMIMD(gate.call(['annotatedUmiMd'], ch_umimd_with_annot))
+        ch_annotatedUmiMd = SINTO_ANNOTATED_UMIMD.out.bam.map { meta, bam, bai ->
+            [ meta, bam, bai, 'annotatedUmiMd' ]
+        }
+    } else {
+        ch_annotatedUmiMd = Channel.empty()
+    }
+
     // ── 3g. Cell-type BAMs (one BAM per cell type) ───────────────────────
 
     SINTO_EXTRACT_CELLTYPE(gate.call(['celltype'], ch_ct_source.map { meta, bam, bai, annot, called_bc, cell_ids ->
@@ -794,6 +866,21 @@ workflow {
         ch_celltypeUmiDup = Channel.empty()
     }
 
+    // celltype + UMI-aware MarkDuplicates
+    if ('umimd' in requested_dedup_strategies) {
+        ch_umimd_for_ct = ch_umimd_dedup
+            .map { meta, bam, bai -> [ meta.id, meta, bam, bai ] }
+            .combine(
+                ch_ct_source.map { meta, bam, bai, annot, called_bc, cell_ids -> [ meta.id, annot ] },
+                by: 0
+            )
+            .map { id, meta, bam, bai, annot -> [ meta, bam, bai, annot ] }
+        SINTO_CELLTYPE_UMIMD(gate.call(['celltypeUmiMd'], ch_umimd_for_ct))
+        ch_celltypeUmiMd = flattenCelltype(SINTO_CELLTYPE_UMIMD.out.celltype_bams, 'celltypeUmiMd')
+    } else {
+        ch_celltypeUmiMd = Channel.empty()
+    }
+
     // ── Assemble BAM channels for variant calling ───────────────────────
     ch_all_labeled_bams = Channel.empty()
     if ('sample'             in requested_bam_types) ch_all_labeled_bams = ch_all_labeled_bams.mix(ch_sample)
@@ -810,6 +897,10 @@ workflow {
     if ('celltype'           in requested_bam_types) ch_all_labeled_bams = ch_all_labeled_bams.mix(ch_celltype)
     if ('celltypeRmDup'      in requested_bam_types) ch_all_labeled_bams = ch_all_labeled_bams.mix(ch_celltypeRmDup)
     if ('celltypeUmiDup'     in requested_bam_types) ch_all_labeled_bams = ch_all_labeled_bams.mix(ch_celltypeUmiDup)
+    if ('sampleUmiMd'        in requested_bam_types) ch_all_labeled_bams = ch_all_labeled_bams.mix(ch_sampleUmiMd)
+    if ('goodCellsUmiMd'     in requested_bam_types) ch_all_labeled_bams = ch_all_labeled_bams.mix(ch_goodCellsUmiMd)
+    if ('annotatedUmiMd'     in requested_bam_types) ch_all_labeled_bams = ch_all_labeled_bams.mix(ch_annotatedUmiMd)
+    if ('celltypeUmiMd'      in requested_bam_types) ch_all_labeled_bams = ch_all_labeled_bams.mix(ch_celltypeUmiMd)
 
     // ── Step 4: Variant calling ─────────────────────────────────────────
     ch_bams_with_strand = ch_all_labeled_bams
@@ -901,12 +992,14 @@ workflow {
     def requested_strand_modes = params.strand_modes.tokenize(',')
     ch_strand_modes = Channel.fromList(requested_strand_modes)
 
-    // 'hybrid' needs I16/SB read-strand counts (bcftools, gatk); for other callers it
-    // would duplicate 'annotation'. 'caller' needs a caller-emitted strand
-    // (reditools3, jacusa2, scallele); bcftools and gatk report "+" only.
+    // 'hybrid' needs per-strand alt read counts (bcftools I16, gatk SB, cellsnp's
+    // forward-fragment pass); for other callers it would duplicate 'annotation'.
+    // 'caller' needs a caller-emitted strand (reditools3, jacusa2, scallele);
+    // bcftools, gatk and cellsnp report "+" only.
     // 'caller' is deliberately not gated on library strandedness: on unstranded
-    // libraries it shows what users of that tool would get.
-    def hybrid_callers        = ['bcftools', 'gatk']
+    // libraries it shows what users of that tool would get. 'hybrid' reads the
+    // library strandedness and uses annotation only on unstranded libraries.
+    def hybrid_callers        = ['bcftools', 'gatk', 'cellsnp']
     def caller_strand_callers = ['reditools3', 'jacusa2', 'scallele']
     ch_variants_x_strand = ch_variants_snpmodes
         .combine(ch_strand_modes)
@@ -924,8 +1017,12 @@ workflow {
         scallele: row[1] == 'scallele'
         other:    true
     }
+    ch_ds_other = ch_ds_split.other
+        .map { row -> [ row[0].parent_id ?: row[0].id ] + row }
+        .combine(ch_strandedness.map { m, s -> [ m.id, s ] }, by: 0)
+        .map { row -> row[1..-1] }
     DOWNSTREAM_R(
-        ch_ds_split.other,
+        ch_ds_other,
         genome_fasta,
         genome_gtf,
         snp_file,

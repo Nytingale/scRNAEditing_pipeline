@@ -1,20 +1,21 @@
 #!/bin/bash
-# ding_ss2_dedup_subsample.sh   (2026-10-24; Reviewer 3, major 2)
-# Equal unique reads on both platforms without per-site thinning, from the pipeline's own deduplicated BAMs
-# (results_v8/PBMC1/02_dedup): Smart-seq2 PBMC1 PBMC1_rmDup.bam (GATK MarkDuplicates per cell, duplicates removed;
-# paired-end) and 10x 3' v3 PBMC1_umiDup.bam (umi_tools per cell; single-end, 215,322,585 primary mapped reads).
-# Both are brought to exactly K = 215,322,584 reads (10x count made even):
-#   tasks 1-3  Smart-seq2: proper pairs only (samtools -f 0x3 -F 0x90C), K / 2 = 107,661,292 pairs sampled as whole
-#              pairs (both mates kept), seeds 20261024/25/26
-#   task 4     10x: K of its 215,322,585 primary mapped reads (-F 0x904), i.e. one random read dropped, seed 20261024
+# ding_ss2_dedup_subsample.sh   (2026-10-24; Reviewer 3, major 2; 10x UMI-aware MarkDuplicates 2026-11-14)
+# Equal unique reads on both platforms without per-site thinning, from the pipeline's own deduplicated BAMs:
+# Smart-seq2 PBMC1 results_v8/PBMC1/02_dedup/PBMC1_rmDup.bam (GATK MarkDuplicates per cell, duplicates removed;
+# paired-end) and 10x 3' v3 02_bams_umimd/PBMC1.bam (UMI-aware MarkDuplicates per cell, pbmc_umimd.sh; single-end,
+# 217,323,582 primary mapped reads). Both are brought to exactly K reads (the 10x count made even; qsub -v K):
+#   tasks 1-3  Smart-seq2: proper pairs only (samtools -f 0x3 -F 0x90C), K / 2 pairs sampled as whole pairs (both
+#              mates kept), seeds 20261024/25/26
+#   task 4     10x: K of its primary mapped reads (-F 0x904; all of them when the count is even), seed 20261024
+# (Until 2026-11-14 the 10x input was the umi_tools PBMC1_umiDup.bam and the outputs went to 02_dedup/subsample.)
 # Selection sampling (Knuth, Algorithm S) over pairs (decided at the first mate, applied to the second) or reads gives an
 # exact, uniformly random subset; output stays coordinate-sorted.
 #   qsub -t 1-4 human/scripts/ding_ss2_dedup_subsample.sh
-# Output: human/jzlss2/results_v8/PBMC1/02_dedup/subsample/PBMC1_rmDup_sub<seed>.bam
-#         human/jzlxv3/results_v8/PBMC1/02_dedup/subsample/PBMC1_umiDup_sub<seed>.bam   (+ .bai, .count)
+# Output: human/jzlss2/results_v8/PBMC1/02_dedup/subsample_umimd/PBMC1_rmDup_sub<seed>.bam
+#         human/jzlxv3/02_bams_umimd/subsample/PBMC1_umiMd_sub<seed>.bam   (+ .bai, .count)
 #$ -S /bin/bash
 #$ -N ding_sub
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/
@@ -23,14 +24,15 @@
 #$ -l h_rt=24:00:00
 set -euo pipefail
 H=${SCRNA_DIR:-.}/human
-K=215322584
+# K = the 10x UMI-aware MarkDuplicates primary mapped count made even (217323582); qsub -v K=<K>
+K=${K:?K = even 10x UMI-aware MarkDuplicates primary mapped read count}
 SEEDS=(20261024 20261025 20261026 20261024)
 SEED=${SEEDS[$((SGE_TASK_ID - 1))]}
 export PATH="${GT_PILEUP_BIN:-/opt/conda/envs/gt_pileup/bin}:${PATH}"
 
 if [ "$SGE_TASK_ID" -le 3 ]; then
   IN=$H/jzlss2/results_v8/PBMC1/02_dedup/PBMC1_rmDup.bam
-  OUT=$H/jzlss2/results_v8/PBMC1/02_dedup/subsample; o=$OUT/PBMC1_rmDup_sub${SEED}.bam
+  OUT=$H/jzlss2/results_v8/PBMC1/02_dedup/subsample_umimd; o=$OUT/PBMC1_rmDup_sub${SEED}.bam
   FILT="-f 0x3 -F 0x90C"
   N=$(samtools view -c -@ 4 -f 0x43 -F 0x90C "$IN")
   echo "=== $(date) Smart-seq2 seed $SEED: $((K / 2)) of $N proper pairs"
@@ -44,8 +46,8 @@ if [ "$SGE_TASK_ID" -le 3 ]; then
               if (seen != N || sel != K || n) { print "pairs " seen " selected " sel " unmatched " n > "/dev/stderr"; exit 1 } }' \
     | samtools view -b -@ 2 -o "$o.tmp" -
 else
-  IN=$H/jzlxv3/results_v8/PBMC1/02_dedup/PBMC1_umiDup.bam
-  OUT=$H/jzlxv3/results_v8/PBMC1/02_dedup/subsample; o=$OUT/PBMC1_umiDup_sub${SEED}.bam
+  IN=$H/jzlxv3/02_bams_umimd/PBMC1.bam
+  OUT=$H/jzlxv3/02_bams_umimd/subsample; o=$OUT/PBMC1_umiMd_sub${SEED}.bam
   FILT="-F 0x904"
   N=$(samtools view -c -@ 4 $FILT "$IN")
   echo "=== $(date) 10x seed $SEED: $K of $N reads"

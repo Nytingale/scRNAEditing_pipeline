@@ -9,12 +9,14 @@
 # Output: gt_eval_v8/replicates/arm_rank/ranksum_jacusa2rep.tsv
 suppressPackageStartupMessages(library(data.table))
 G <- file.path(Sys.getenv("SCRNA_DIR", "."), "human/pm/gt_eval_v8")
+# pooled scoring set: REPL_SCN=scoring_pwcov (headline, default) -> scoring_pwcov/, rediportal_pwcov/; scoring -> scoring/, rediportal/
+SCN <- Sys.getenv("REPL_SCN", "scoring_pwcov"); RDN <- sub("^scoring", "rediportal", SCN)
 TIERS <- c("arm", "sample", "celltype")
 
 ko <- rbindlist(lapply(TIERS, function(tr)
-  fread(file.path(G, "scoring", "mismatch", tr, "gt_v7_scores_reported.tsv"))[, .(truth = paste("KO", gate, t), config, tier = tr, f1)]))
+  fread(file.path(G, SCN, "mismatch", tr, "gt_v7_scores_reported.tsv"))[, .(truth = paste("KO", gate, t), config, tier = tr, f1)]))
 redi <- rbindlist(lapply(c("cov10_alt1", "alt3", "alt3_e05"), function(tt)
-  fread(file.path(G, "rediportal", "scoring_mismatch", paste0("gt_tier_scoring_", tt, ".tsv")))[
+  fread(file.path(G, RDN, "scoring_mismatch", paste0("gt_tier_scoring_", tt, ".tsv")))[
     , .(truth = paste("REDIportal", tt), config = paste(caller, bam_type, strand_mode, snp_subtract, sep = "__"),
         tier = c(dataset = "arm", sample = "sample", celltype = "celltype")[tier], f1)]))
 s <- rbind(ko, redi)

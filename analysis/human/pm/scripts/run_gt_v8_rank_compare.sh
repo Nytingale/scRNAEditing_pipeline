@@ -4,7 +4,7 @@
 # then gt_v8_compare.R -> gt_eval_v8/compare_config_rank.tsv.
 #$ -S /bin/bash
 #$ -N gt_v8_rankcmp
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/

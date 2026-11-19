@@ -13,7 +13,7 @@
 # Then: gt_rank_v7.R per state and gt_v8_compare.R.
 #$ -S /bin/bash
 #$ -N gt_v8_rescore
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/
@@ -38,6 +38,7 @@ STATES=(none mismatch clustered both)
 TIERS=(arm sample celltype)
 # Call sets (2026-10-15): the v8 caller runs (run_pipeline_pm_gt_v8.sh; step-4 / step-5 tables next to each pre100)
 # and their no-window replay (nomm_rerun_v8.sh -> *_v8_nomm). Before: v6 runs + gt_eval_v6/prewindow, v6_nomm.
+# State both reads the REPLAY=both replay (*_v8_both) since the v8 runs use --clustered_filter 0 (2026-11-01).
 declare -A PUB=([arm]=results_gt_v8 [sample]=results_gt_persample_v8 [celltype]=results_gt_celltype_v8)
 RES_DIRS="arm=${PUB[arm]},sample=${PUB[sample]},celltype=${PUB[celltype]}"
 i=$(( ${SGE_TASK_ID:-1} - 1 ))
@@ -54,7 +55,7 @@ elif [ $i -lt 12 ]; then
     none)      res=$PM/${PUB[$tier]};      re='_step4_cov_edit_filtered\.tsv\.gz$' ;;
     mismatch)  res=$PM/${PUB[$tier]};      re='_step5_nomm\.tsv\.gz$' ;;
     clustered) res=$PM/${PUB[$tier]}_nomm; re='_pre100\.tsv\.gz$' ;;
-    both)      res=$PM/${PUB[$tier]};      re='_pre100\.tsv\.gz$' ;;
+    both)      res=$PM/${PUB[$tier]}_both; re='_pre100\.tsv\.gz$' ;;
   esac
   echo "KO state=$state tier=$tier res=$res"
   GT_V7_TRUTH=${KO_TRUTH:-$V8/truth/gt_v7_truth_sites.tsv.gz} GT_UNIT_COV=$V8/unit_cov/ko_truth_unit_cov.tsv.gz \
@@ -66,7 +67,7 @@ else
     none)      RE='_step4_cov_edit_filtered\.tsv\.gz$' ;;
     mismatch)  RE='_step5_nomm\.tsv\.gz$' ;;
     clustered) RE='_pre100\.tsv\.gz$'; dirs="arm=${PUB[arm]}_nomm,sample=${PUB[sample]}_nomm,celltype=${PUB[celltype]}_nomm" ;;
-    both)      RE='_pre100\.tsv\.gz$' ;;
+    both)      RE='_pre100\.tsv\.gz$'; dirs="arm=${PUB[arm]}_both,sample=${PUB[sample]}_both,celltype=${PUB[celltype]}_both" ;;
   esac
   echo "REDIportal state=$state dirs=$dirs"
   GT_REDI_EXCLUDE_BED=$PM/pgp1_snps/PGP1_hu43860C_hg38_snvs.bed GT_RES_DIRS="$dirs" GT_CALL_RE="$RE" \

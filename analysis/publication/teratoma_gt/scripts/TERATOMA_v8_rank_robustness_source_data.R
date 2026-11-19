@@ -33,6 +33,8 @@ REDI_FILES <- unname(v8_redi_files(STATE))
 stopifnot(all(file.exists(c(CMP, REF_RANK, REDI_FILES))))
 
 COMBO <- c("caller", "bam_type", "strand_mode", "snp_subtract")
+# three deduplication methods once UMI-aware MarkDuplicates is ranked (76 configurations)
+label_bamType[c("sampleUmiDup", "sampleUmiMd")] <- c("De-duplicated (umi_tools)", "De-duplicated (UMI-aware MarkDuplicates)")
 TRUTH_LAB <- V8_TRUTH_LABELS[V8_TRUTH_IDS]
 
 cmp <- fread(CMP)

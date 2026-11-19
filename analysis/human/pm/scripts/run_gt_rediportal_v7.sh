@@ -8,7 +8,7 @@
 #   qsub human/pm/scripts/run_gt_rediportal_v7.sh
 #$ -S /bin/bash
 #$ -N gt_redi_v7
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/

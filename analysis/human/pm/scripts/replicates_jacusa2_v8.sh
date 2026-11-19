@@ -12,7 +12,7 @@
 #   qsub -t 1-4 replicates_jacusa2_v8.sh
 #$ -S /bin/bash
 #$ -N jac_rep8
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/

@@ -104,9 +104,13 @@ n_types_near = function(q, nb, w) {
 }
 
 ag = fread(file.path(AGTC, "truth_sites.tsv.gz"))
-ag = ag[variant == "AG" & eligible == TRUE & multiallelic == FALSE]
+# GT_V7_VARIANT=AGTC (2026-11-07, strand-free truth impact check): read-orientation A>G and T>C positions
+VARIANT = Sys.getenv("GT_V7_VARIANT", "AG")
+stopifnot(VARIANT %in% c("AG", "AGTC"))
+RTYPES = if (VARIANT == "AG") "AG" else c("AG", "TC")
+ag = ag[variant == VARIANT & eligible == TRUE & multiallelic == FALSE]
 ag[, c("chr", "pos") := tstrsplit(site, ":", fixed = TRUE)][, pos := as.integer(pos)]
-stopifnot(all(ag$type == "AG"), all(ag$strand %in% c("+", "-")))
+stopifnot(all(ag$type %in% RTYPES), all(ag$strand %in% c("+", "-")))
 
 flags = list(); grid_all = list(); spec = list(); flags12 = list()
 for (g in names(GATES)) {
@@ -144,6 +148,21 @@ for (g in names(GATES)) {
   # every eligible A>G truth row of this gate must be a 12-type gate site
   tg = merge(ag[gate == g], t12[, .(chr, pos, strand, type, context, masked, nomm_pass, pgp1, nomm_pass_pgp1)],
              by = c("chr", "pos", "strand", "type"), all.x = TRUE)
+  # GT_ALLOW_NON12=1 (2026-11-13, v9 rank sensitivity): with a loosened truth threshold some truth rows are not
+  # 12-type gate sites (built with the frozen thresholds); they get the same flags against the same fixed
+  # neighbours at the chosen w1 (the cleaning does not move with the threshold under examination)
+  miss = which(is.na(tg$masked))
+  if (length(miss) && Sys.getenv("GT_ALLOW_NON12") == "1") {
+    q = tg[miss, .(chr, pos, strand, type)]
+    cx = context_of(q$chr, q$pos)
+    q = merge(q[, ord := .I], cx, by = c("chr", "pos"), all.x = TRUE)[order(ord)]
+    pg_q = paste(q$chr, q$pos) %in% paste(pgp1$chr, pgp1$pos)
+    nb_all = t12[, .(chr, pos, strand, type)]; nb_pg = t12[pgp1 == FALSE, .(chr, pos, strand, type)]
+    set(tg, miss, "context", q$context); set(tg, miss, "masked", q$context %in% MASK); set(tg, miss, "pgp1", pg_q)
+    set(tg, miss, "nomm_pass", n_types_near(q[, .(chr, pos, strand, type)], nb_all, w1s[["all"]]) < 2)
+    set(tg, miss, "nomm_pass_pgp1", !pg_q & n_types_near(q[, .(chr, pos, strand, type)], nb_pg, w1s[["pgp1"]]) < 2)
+    message(g, ": ", length(miss), " truth rows outside the 12-type gate sites, flagged against the fixed neighbours")
+  }
   stopifnot(!anyNA(tg$masked))
   tg[, `:=`(w1 = w1s[["all"]], w1_pgp1 = w1s[["pgp1"]])]
   flags[[g]] = tg
@@ -173,8 +192,8 @@ sp[, pct := 100 * N / sum(N), by = .(gate, t, cleaning)]
 fwrite(sp, file.path(OUT, "spectrum12_cleaning.tsv"), sep = "\t")
 
 # ---- write the eight truth tables ----------------------------------------------------------------
-fl[, genomic_ref := fifelse(strand == "+", "A", "T")]
-fl[, a_to_i_strand := strand]
+fl[, genomic_ref := fifelse((type == "AG") == (strand == "+"), "A", "T")]
+fl[, a_to_i_strand := fifelse(genomic_ref == "A", "+", "-")]
 for (tn in names(DS)) {
   p = fl[[paste0("pos_", tn)]]
   set(fl, j = paste0("class_", tn), value = fifelse(p, "positive", fifelse(fl$informative_negative, "informative_negative", "unresolved")))
@@ -183,7 +202,7 @@ COLS = c("gate", "site", "chr", "pos", "genomic_ref", "a_to_i_strand", "read_typ
 setnames(fl, c("type", "strand"), c("read_type", "read_strand"))
 
 v7 = fread(file.path(V7_TRUTH, "gt_v7_truth_sites.tsv.gz"))
-stopifnot(all(v7$read_type == "AG"))
+stopifnot(all(v7$read_type %in% RTYPES))
 cnt = list()
 for (cl in CLEAN) {
   nm = VAR_NAME[[cl]]

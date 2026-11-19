@@ -23,7 +23,7 @@
 #   SHEET=.../samplesheet_jzl10x.csv DATASET=jzl10x ./submit_celltype_as_sample.sh
 set -eo pipefail
 
-QSUB=/cm/shared/apps/sge/2011.11p1/bin/linux-x64/qsub
+QSUB=$(command -v qsub || echo /cm/shared/apps/sge/2011.11p1/bin/linux-x64/qsub)
 BASEDIR="${SCRNA_DIR:-.}"
 SCRIPTS="${BASEDIR}/human/pm/scripts"
 

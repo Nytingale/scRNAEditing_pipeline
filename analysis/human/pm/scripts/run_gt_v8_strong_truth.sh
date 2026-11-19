@@ -8,7 +8,7 @@
 #   then: for a in 10 20; do Rscript human/scripts/gt_rank_v7.R gt_eval_v8/sensitivity/strong_alt$a/scoring/mismatch; done
 #$ -S /bin/bash
 #$ -N gt_v8_strong
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/

@@ -8,7 +8,7 @@
 #   x10u = 10x UMI-deduplicated, ss2p1d = Smart-seq2 PBMC1 per-cell coordinate-deduplicated, from run_pipeline_dataset_v8.sh)
 #$ -S /bin/bash
 #$ -N ding_pu
-#$ -q slice
+# -q <queue>: add as a "#$" line if your cluster needs one
 #$ -cwd
 #$ -o ${SCRNA_DIR:-.}/logs/
 #$ -e ${SCRNA_DIR:-.}/logs/

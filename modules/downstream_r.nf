@@ -24,7 +24,7 @@ process DOWNSTREAM_R {
     )
 
     input:
-    tuple val(meta), val(caller), val(bam_label), path(variants), val(strand_mode), path(snp_blacklist), val(snp_sub)
+    tuple val(meta), val(caller), val(bam_label), path(variants), val(strand_mode), path(snp_blacklist), val(snp_sub), val(lib_strand)
     path fasta
     path gtf
     path snp_file
@@ -45,6 +45,8 @@ process DOWNSTREAM_R {
           path("${meta.id}_${caller}_${bam_label}_${strand_mode}_snp${snp_sub}_metrics.tsv"), emit: metrics
 
     script:
+    // Only hybrid reads it: read-strand counts are oriented by the library type.
+    def lib_flag = strand_mode == 'hybrid' ? " \\\n        --library_strandedness ${lib_strand}" : ""
     def snp_flag = ""
     if (snp_file.name != 'NO_FILE') {
         def ext = snp_file.name.toLowerCase()
@@ -100,7 +102,7 @@ process DOWNSTREAM_R {
         --jacusa2_min_score ${j2_min_score} \\
         --remove_100pct_editing ${rm_100pct} \\
         --strand_mode ${strand_mode} \\
-        --strand_ambiguity_threshold ${ambig_thresh} \\
+        --strand_ambiguity_threshold ${ambig_thresh}${lib_flag} \\
         --snp_subtract_label ${snp_sub} \\
         --output_filtered ${meta.id}_${caller}_${bam_label}_${strand_mode}_snp${snp_sub}_filtered.txt.gz \\
         --output_pre100 ${meta.id}_${caller}_${bam_label}_${strand_mode}_snp${snp_sub}_pre100.tsv.gz \\

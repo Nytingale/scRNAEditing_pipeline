@@ -7,7 +7,7 @@
 #      (figure: publication/teratoma_gt/scripts/TERATOMA_v8_filter_sweep_rank_plot.R)
 suppressPackageStartupMessages(library(data.table))
 
-V8 = file.path(Sys.getenv("SCRNA_DIR", "."), "human/pm/gt_eval_v8")
+V8 = Sys.getenv("GT_V8_DIR", file.path(Sys.getenv("SCRNA_DIR", "."), "human/pm/gt_eval_v8"))   # GT_V8_DIR: gt_eval_v8_60 (58 + 2 Cellsnp-lite hybrid)
 W  = Sys.getenv("W", file.path(V8, "filter_sweep"))
 # SCN=scoring_pw: sweep scored with the gate-matched recall denominator, compared with V8/scoring_pw; outputs suffixed _pw
 SCN = Sys.getenv("SCN", "scoring")
@@ -21,7 +21,8 @@ rk = rbindlist(lapply(settings, function(s) {
 }))
 stopifnot("centre" %in% rk$setting)
 
-main = fread(file.path(V8, SCN, "mismatch", "config_rank.tsv"), select = c("gate", "t", "config", "overall_rank", "mean_f1"))
+# MAIN: the main ranking the sweep centre must reproduce (default V8/SCN/mismatch; v9 76: gt_eval_v9/scoring_pwcov76/mismatch)
+main = fread(Sys.getenv("MAIN", file.path(V8, SCN, "mismatch", "config_rank.tsv")), select = c("gate", "t", "config", "overall_rank", "mean_f1"))
 chk = merge(rk[setting == "centre"], main, by = c("gate", "t", "config"), suffixes = c("", "_main"))
 stopifnot(nrow(chk) == nrow(main), nrow(chk) == nrow(rk[setting == "centre"]))
 cat("centre vs main ranking: identical ranks", chk[, all(overall_rank == overall_rank_main)],

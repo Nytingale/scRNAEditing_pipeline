@@ -32,16 +32,20 @@ gtdef_set_dataset("pm_gt")
 SCRIPT = caller_script()
 PM = file.path(REPO_DIR, "human", "pm")
 FT = file.path(PM, "gt_eval_v8", "fisher")
+# GT_V9=1 (2026-11-16): v9 site definition on the seed-8787 pileups (human/pm/scripts/gt_v9_m_null.sh -> gt_eval_v9/m_null/):
+# the A-to-I group is the read-orientation A>G and T>C truth-eligible rows (one orientation per position)
+V9 = Sys.getenv("GT_V9") == "1"
+if (V9) FT = file.path(PM, "gt_eval_v9", "m_null")
 M_K = 1:8
 M_BR = c(M_K - 0.5, max(M_K) + 0.5)
 N_DRAW = 2000; MIN_AG_ZEROS = 10
 G_DEC = "Non-AG/TC sites (10 mismatch types)"
-G_AG = "A-to-G candidate sites"
+G_AG = if (V9) "A-to-G and T-to-C candidate sites" else "A-to-G candidate sites"
 
 t12 = fread(file.path(PM, "gt_eval_v6/spectrum12/eval_depth1/truth12_sites.tsv.gz"))
 flags = fread(file.path(FT, "truth/truth12_site_flags.tsv.gz"),
               select = c("gate", "chr", "pos", "strand", "type", "pgp1", "nomm_pass", "nomm_pass_pgp1"))[gate == "depth1"]
-truth = fread(file.path(FT, "truth/v7_nomm_pgp1/gt_v7_truth_sites.tsv.gz"), select = c("gate", "site"))[gate == "depth1"]
+truth = fread(file.path(FT, "truth/v7_nomm_pgp1/gt_v7_truth_sites.tsv.gz"))[gate == "depth1"]
 t12 = merge(t12, flags[, gate := NULL], by = c("chr", "pos", "strand", "type"))
 t12[, site := paste0(chr, ":", pos)]
 t12[, ntc_af := ntc_alt / ntc_cov]
@@ -49,7 +53,8 @@ one_type = function(x) x[!site %chin% x[, .N, by = site][N > 1, site]]
 
 u = t12[pgp1 == FALSE & nomm_pass_pgp1 == TRUE]
 dec = one_type(u[!type %in% c("AG", "TC")])[, grp := G_DEC]
-ag = u[type == "AG" & site %chin% truth$site][, grp := G_AG]
+ag = if (V9) u[paste(site, strand, type) %chin% truth[, paste(site, read_strand, read_type)]][, grp := G_AG] else
+  u[type == "AG" & site %chin% truth$site][, grp := G_AG]
 stopifnot(nrow(ag) == nrow(truth))
 
 arms_long = function(x) rbindlist(lapply(c(ADAR1 = "adar1", ADAR2 = "adarb1"), function(a)

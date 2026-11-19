@@ -17,6 +17,7 @@ source(file.path(dirname(normalizePath(sub("^--file=", "",
 suppressPackageStartupMessages(library(cowplot))
 script_id <- "publication/benchmark_grid/scripts/BENCHMARK_grid_plot.R"
 SD <- "BENCHMARK_grid"
+snp_strip <- function(x) paste0("SNP removal:\n", sub(" + ", "\n+ ", relabel(x, label_snpSubtract), fixed = TRUE))
 message("dataset: ", DATASET)
 
 # ── (A) Final A-to-G fraction ───────────────────────────────────────────────
@@ -32,7 +33,7 @@ dat.a <- read_part(SD, "a_final")
 p.a <- ggplot(dat.a, aes(x = bam_type, y = ag_pct_step7_pct, fill = caller)) +
   geom_boxplot(outlier.size = 0.4, linewidth = 0.3, position = position_dodge(0.85)) +
   facet_grid(snp_subtract ~ strand_mode,
-             labeller = labeller(snp_subtract = function(x) paste0("SNP subtract: ", x),
+             labeller = labeller(snp_subtract = snp_strip,
                                  strand_mode  = function(x) paste0("strand: ", x))) +
   scale_fill_manual_cvd(values = cmap_method, na.value = "grey50") +
   labs(x = "BAM preprocessing", y = "Final A-to-G sites (% of mismatches)",
@@ -56,11 +57,13 @@ attrition_panel <- function(d, ylab, logy) {
                 colour = NA, show.legend = FALSE) +
     geom_line(aes(linetype = snp_subtract), linewidth = 0.5) +
     geom_point(size = 1.1) +
-    facet_grid(snp_subtract + strand_mode ~ bam_type) +
+    facet_grid(snp_subtract + strand_mode ~ bam_type,
+               labeller = labeller(snp_subtract = snp_strip)) +
     scale_colour_manual_cvd(values = cmap_method, na.value = "grey50") +
     scale_fill_manual_cvd(values = cmap_method, na.value = "grey50") +
     labs(x = "Filtering step", y = ylab, colour = "Caller",
-         linetype = "SNP subtraction") +
+         linetype = "SNP removal") +
+    scale_linetype_discrete(labels = function(x) relabel(x, label_snpSubtract)) +
     theme_manuscript(facets = TRUE) + grid_y +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
   if (logy) p + scale_y_log10(labels = shorten_axis) else p + scale_y_continuous(labels = shorten_axis)
@@ -98,7 +101,7 @@ if (has_part(SD, "d_strand_shift")) {
                   position = position_dodge(0.6), linewidth = 0.4) +
     geom_point(size = 2.2, position = position_dodge(0.6)) +
     facet_wrap(~snp_subtract, nrow = 1,
-               labeller = labeller(snp_subtract = function(x) paste0("SNP subtract: ", x))) +
+               labeller = labeller(snp_subtract = snp_strip)) +
     scale_colour_manual_cvd(values = cmap_method, na.value = "grey50") +
     labs(x = "BAM preprocessing",
          y = "A-to-G % shift, hybrid - annotation\n(paired within run; median, IQR)",
@@ -125,7 +128,7 @@ if (has_part(SD, "e_windows")) {
     geom_text(aes(label = paste0("w1=", w1_median, "\nw2=", w2_median)),
               size = 2.3, lineheight = 0.9) +
     facet_grid(snp_subtract ~ strand_mode,
-               labeller = labeller(snp_subtract = function(x) paste0("SNP subtract: ", x),
+               labeller = labeller(snp_subtract = snp_strip,
                                    strand_mode  = function(x) paste0("strand: ", x))) +
     scale_fill_viridis_c(option = "D", name = "A-to-G %\n(step 6, median)") +
     labs(x = "Caller", y = "BAM preprocessing") +
@@ -147,7 +150,7 @@ if (has_part(SD, "f_strand_source")) {
   p.f <- ggplot(dat.f, aes(x = caller, y = median, fill = source)) +
     geom_col(position = "stack", colour = "black", linewidth = 0.25) +
     facet_grid(snp_subtract ~ bam_type,
-               labeller = labeller(snp_subtract = function(x) paste0("SNP subtract: ", x))) +
+               labeller = labeller(snp_subtract = snp_strip)) +
     scale_fill_manual_cvd(values = c(read = unname(cmap_strandMode[["hybrid"]]),
                                      annot = unname(cmap_strandMode[["annotation"]])),
                           labels = c(read = "Read evidence", annot = "Annotation"),

@@ -4,8 +4,8 @@
 #
 # R2 major 3 (does the nearby-mismatch pass discard hyper-edited clusters?). Pool = truth candidates (all 12-type
 # gate sites, PGP1 SNV positions removed).
-#   a_bins  KO-depleted A-to-G sites binned by the number of other A-to-G pool sites within 200 nt on the same
-#           strand (0 / 1 / 2 / 3 / > 3): sites and % kept by "remove if near other MM types" (w1 = 200), gate x t
+#   a_bins  KO-depleted A-to-G sites binned by the number of other A-to-G pool sites within w1 nt on the same
+#           strand (0 / 1 / 2 / 3 / > 3): sites and % kept by "remove if near other MM types" (w1 = truth window of the gate, nomm_w1_grid.tsv), gate x t
 #   b_kept  both passes, alone and together, on the same KO-responsive candidate sites (best w2 per t): A-to-G vs
 #           the other 11 mismatch types kept, % of no filter (ADAR KO cannot act on the other types)
 #
@@ -20,23 +20,33 @@ source(file.path(REPO_DIR, "plotting", "source_data_io.R"))
 gtdef_set_dataset("pm_gt")
 STEM <- "GTDEF_v8_nomm_cluster_retention"
 
-F_CLU <- file.path(V8_SUPPORT, "window_cluster_retention.tsv")
-F_CMP <- file.path(V8_SUPPORT, "window_truth_compare.tsv")
+# GT_V9=1: v9 truth (human/scripts/gt_v9_window_cluster_compare.R; A-to-I = A-to-G + T-to-C, teratoma only)
+GT_V9 <- Sys.getenv("GT_V9") == "1"
+SUP <- if (GT_V9) file.path(REPO_DIR, "human", "pm", "gt_eval_v9", "truth", "support") else V8_SUPPORT
+W1_F <- if (GT_V9) file.path(REPO_DIR, "human", "pm", "gt_eval_v9", "build", "variants", "nomm_w1_grid.tsv") else
+  file.path(V8_SUPPORT, "nomm_w1_grid.tsv")
+F_CLU <- file.path(SUP, "window_cluster_retention.tsv")
+F_CMP <- file.path(SUP, "window_truth_compare.tsv")
 stopifnot(file.exists(F_CLU), file.exists(F_CMP))
-GATE_LAB <- c(expected = "Power-gated", depth = "Depth-gated")
+W1G <- fread(W1_F)[pgp1 == TRUE & chosen == TRUE, setNames(w1, gate)]
+GATE_LAB <- c(expected = sprintf("Power-gated\n(\u00b1 %d nt)", W1G[["expected"]]),
+              depth = sprintf("Depth-gated\n(\u00b1 %d nt)", W1G[["depth"]]))
 T_LAB <- c(t25 = "\u2265 25% editing\nreduction in KO", t50 = "\u2265 50% editing\nreduction in KO",
            t75 = "\u2265 75% editing\nreduction in KO")
 CL_LEV <- c("0", "1", "2", "3", ">3")
 
-cr <- fread(F_CLU)[cl != "all"]
-stopifnot(setequal(cr$cl, CL_LEV), cr[gate == "expected" & t == "t50", sum(n)] == 1686L)
+cr_all <- fread(F_CLU)
+cr <- cr_all[cl != "all"]
+stopifnot(setequal(cr$cl, CL_LEV),
+          identical(cr[, .(n = sum(n)), keyby = .(gate, t)]$n, cr_all[cl == "all", .(n = sum(n)), keyby = .(gate, t)]$n))
 cr[, `:=`(clf = factor(cl, levels = CL_LEV), g = factor(GATE_LAB[gate], levels = GATE_LAB),
           tl = factor(T_LAB[t], levels = T_LAB))]
 write_sd(cr[, .(g, tl, clf, n, pct = kept_pct)], SRC_DIR, STEM, "a_bins")
 
 PASS_LAB <- c(none = "No local\ncontext filters", mismatch = "+ Remove if near\nother MM types",
               clustered = "+ Clustered", both = "+ Remove if near\nother MM types\n+ Clustered")
-CLS_LAB <- c(ag = "KO-responsive A-to-G sites", other = "Other 11 mismatch types,\ndecreased mismatch rate in KO")
+CLS_LAB <- if (GT_V9) c(ag = "KO-responsive A-to-G and T-to-C sites", other = "Other 10 mismatch types,\ndecreased mismatch rate in KO") else
+  c(ag = "KO-responsive A-to-G sites", other = "Other 11 mismatch types,\ndecreased mismatch rate in KO")
 cm <- fread(F_CMP)
 stopifnot(setequal(cm$state, names(PASS_LAB)), nrow(cm) == 24L)
 cm <- merge(cm, cm[state == "none", .(gate, t, ag0 = n_ag, oth0 = n_depleted - n_ag)], by = c("gate", "t"))
