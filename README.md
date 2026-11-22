@@ -524,6 +524,34 @@ Resources are set per process label in `nextflow.config`. All callers share one 
 
 **scAllele threads.** scAllele runs one task per chromosome (`SCALLELE_CHROM`), and each task starts as many scAllele workers (`-n`) as it has cpus: 8 by default. On a test of two regions, 8 workers were 2.3-3.7x faster than 1 and gave the same VCF. To change the number, set the cpus in a config file given with `-c`, e.g. `process { withName: 'SCALLELE_CHROM' { cpus = 4 } }`.
 
+## Estimated run times
+
+Measured on a Slurm cluster with the resources in `nextflow.config`, counting only the time tasks ran (not the time they waited in the queue). Tasks run in parallel, so with enough free slots the wall time of a run is set by its longest chain of tasks, not by the sum of all tasks.
+
+**End-to-end test runs**
+
+| Run | Wall time |
+|---|---|
+| Mouse Smart-seq2, 11 cells, `--remap` from FASTQ, six callers, 10 BAM types | 1 h 05 min |
+| Octopus 10x 3' v3, 4 million read pairs (14,883 called cells), `--remap`, four callers, deduplication none / coordinate / UMI / UMI-aware MarkDuplicates | about 4 h up to the collated results, then 24 h for the per-cell steps (split 10.9 h, per-cell mpileup 13.2 h) |
+
+**Full datasets.** Ten datasets: human, mouse and octopus; 10x v2 / v3, CEL-seq2, Smart-seq2, DroNc-seq and sci-RNA-seq; 526 to 39,520 cells; input BAMs of 18-81 GB, or 35-85 GB of FASTQ for the datasets aligned with `--remap`. The typical task is the range of the per-dataset medians:
+
+| Step | Typical task | Longest task | Notes |
+|---|---|---|---|
+| STARsolo alignment (`--remap`) | 2-4 min per Smart-seq2 cell; 23 min for 4 million 10x read pairs | | much of it loads the genome index; grows with read count |
+| Deduplication, cell and cell-type BAMs | under 0.1-1.2 h | 1.3 h | per BAM type |
+| BCFtools mpileup | 0.1-0.7 h | 4.4 h | per BAM type |
+| REDItools3 | 0.02-3 h | 7.8 h | per BAM type |
+| GATK HaplotypeCaller | 0.1-1.1 h | 6.5 h | per BAM type |
+| GATK SplitNCigarReads and BQSR (`recal` tiers) | 0.2-6 h each | 8.1 h (BQSR) | run before HaplotypeCaller, so a `recal` tier takes up to about 16 h |
+| JACUSA2 | 0.1-0.3 h | 0.7 h | per BAM type |
+| Cellsnp-lite | 0.01-1.6 h | 3.8 h | per BAM type |
+| scAllele (one task per chromosome) | 0.03-1.2 h | 9.1 h | with one worker; 8 workers (default) were 2.3-3.7x faster |
+| Downstream filtering | under 0.1 h | 7.1 h | per BAM type x caller x strand mode |
+
+So a full dataset with the default callers finishes in about half a day to a day when slots are free. scAllele is the slowest caller and sets the wall time when requested: on the octopus samples (2.3 Gb genome, BAMs of about 40 GB), single scAllele tasks on the long chromosomes were on course for 3-5 days with one worker. The per-cell steps (`--percell_analyses`, on by default) add time that grows with the number of cells: on the octopus test, 10.9 h to split 14,883 cells (slow there because the octopus BAM header lists 145,327 scaffolds, which is written into every per-cell BAM) and 13.2 h for the per-cell mpileup. Set `--percell_analyses false` when per-cell output is not needed.
+
 ## Resource tracing
 
 Nextflow's built-in tracing records CPU, memory and wall time for every task in `pipeline_trace.txt` (peak RSS, peak virtual memory, read/write bytes, duration). For callers that run one task per chromosome (scAllele, and JACUSA2 with `--jacusa2_scatter`), the runtime of a configuration is the sum over its chromosome tasks.
