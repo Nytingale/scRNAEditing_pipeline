@@ -308,6 +308,7 @@ This masking is optional and may not be needed with newer tool versions. If in d
 | `--scallele_conda` | `envs/scAllele.yml` | conda profile only: scAllele environment (prefix or file); ignored with containers |
 | `--scallele_run_mode` | Variant_Caller | scAllele `--run_mode`: `Variant_Caller`, `Full`, or `Training` |
 | `--cellsnp_bin` | `cellsnp-lite` | Cellsnp-lite binary; with the conda profile, the one in the `cellsnp` environment |
+| `--cellsnp_memory_gb` | 48 | Cellsnp-lite memory (GB) on the first attempt; retries use 2x and 3x. Raise it for genomes or BAMs with tens of millions of covered sites (e.g. 96 for octopus) |
 
 ### Downstream filtering
 
@@ -339,6 +340,7 @@ This masking is optional and may not be needed with newer tool versions. If in d
 | Parameter | Default | Description |
 |---|---|---|
 | `--percell_analyses` | true | Per-cell split + mpileup / AEI (barcode platforms). Set false for caller-comparison runs (the split is memory-heavy) |
+| `--percell_batch_size` | 500 | Cells per sinto pass in the per-cell split. sinto holds one open output per cell per CPU, so memory grows with this value; each pass reads the whole BAM |
 | `--percell_calling` | false | Per-cell discovery: run one caller on every cell of one BAM type |
 | `--percell_caller` | null | Required with `--percell_calling`: `bcftools`, `reditools3`, `gatk`, `jacusa2` or `scallele` |
 | `--percell_bam_type` | null | Required with `--percell_calling`: a sample-, goodCells- or annotated-level BAM type |
@@ -519,6 +521,8 @@ Combine one software profile with one executor profile, e.g. `-profile singulari
 **Slurm.** Always add `-c conf/slurm.config` to `-profile slurm`. The resource settings in `nextflow.config` also pass SGE options (`-cwd -l mem=<memory>`) as `clusterOptions`, which `sbatch` rejects; `conf/slurm.config` removes them, so memory is requested by `--mem` from each process's `memory` (cpus and time are unchanged). It also caps the time per job at 14 days (`resourceLimits`), because some processes ask for up to 420 h. Set your partition in that file (`queue`) if the default partition is not the right one. Executor settings are not part of the task hash, so `-resume` reuses tasks run under SGE or PBS.
 
 Resources are set per process label in `nextflow.config`. All callers share one allocation (12 cpus, 48 GB) so their runtimes are comparable; on SGE, memory is requested with `-l mem` (see the comments in `nextflow.config`).
+
+**scAllele threads.** scAllele runs one task per chromosome (`SCALLELE_CHROM`), and each task starts as many scAllele workers (`-n`) as it has cpus: 8 by default. On a test of two regions, 8 workers were 2.3-3.7x faster than 1 and gave the same VCF. To change the number, set the cpus in a config file given with `-c`, e.g. `process { withName: 'SCALLELE_CHROM' { cpus = 4 } }`.
 
 ## Resource tracing
 

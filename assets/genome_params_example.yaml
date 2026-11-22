@@ -15,3 +15,5 @@ star_index: /path/to/stardb_<overhang>                   # --remap only; built f
 # mito_chr: NC_012920.1                                  # needed when the GTF names the mitochondrial chromosome
 #                                                          other than chrM, chrMT, MT, M, mitochondrion_genome or
 #                                                          *mito*: otherwise pct_mt is 0 and --qc_max_pct_mt does nothing
+# cellsnp_memory_gb: 96                                  # CELLSNP_LITE first-attempt memory (default 48); raise for
+#                                                          genomes with tens of millions of covered sites

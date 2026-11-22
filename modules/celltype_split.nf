@@ -218,13 +218,20 @@ process SINTO_SPLIT_PERCELL {
         samtools view ${bam} | grep -oP 'CB:Z:\\K[^\\t]+' | sort -u | awk '{print \$1"\\t"\$1}' > _percell_barcodes.txt
     fi
 
-    sinto filterbarcodes \\
-        -b ${bam} \\
-        -c _percell_barcodes.txt \\
-        --outdir percell \\
-        -p ${task.cpus}
+    # sinto keeps one open output per cell per worker (1 MiB buffer each), so thousands of cells in one pass
+    # exhaust memory and a killed worker hangs the pool until walltime. Split in batches; each pass reads the BAM.
+    split -l ${params.percell_batch_size} -d -a 5 _percell_barcodes.txt _percell_batch_
+    N_BATCH=\$(ls _percell_batch_* | wc -l)
+    echo "Per-cell split: \$(wc -l < _percell_barcodes.txt) cells in \$N_BATCH batches of <= ${params.percell_batch_size}"
+    for b in _percell_batch_*; do
+        sinto filterbarcodes \\
+            -b ${bam} \\
+            -c \$b \\
+            --outdir percell \\
+            -p ${task.cpus}
+    done
 
-    rm -f _percell_barcodes.txt
+    rm -f _percell_barcodes.txt _percell_batch_*
 
     # Sort and index each per-cell BAM
     for f in percell/*.bam; do

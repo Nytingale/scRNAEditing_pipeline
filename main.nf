@@ -51,6 +51,7 @@ params.strand_ambiguity_threshold = 0.3  // hybrid mode: read-strand ambiguity c
 params.strandedness    = 'auto'  // auto (RSeQC infer_experiment.py), forward, reverse or unstranded; applies to every sample
 
 params.percell_analyses      = true    // Step 6; false avoids the memory-heavy SINTO_SPLIT_PERCELL
+params.percell_batch_size    = 500     // Cells per sinto pass in SINTO_SPLIT_PERCELL
 params.percell_calling       = false   // Step 7
 params.percell_aei           = true
 params.percell_caller        = null    // Required with percell_calling

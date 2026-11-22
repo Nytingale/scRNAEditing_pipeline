@@ -1,6 +1,6 @@
 #!/bin/bash
 # One-chromosome scAllele worker for SCALLELE (chr-scatter, matches the
-# bcftools/gatk pattern). Runs scAllele single-threaded (-n 1) on one contig so
+# bcftools/gatk pattern). Runs scAllele on one contig with SCALLELE_THREADS workers (-n; default 1) so
 # the module can scatter contigs across the allocated cpus with xargs -P instead
 # of the old serial per-chromosome loop. Writes per-chr _snvs_<CHR>.txt (all
 # SNVs, PASS + LowQual, with FILTER, varType tag and read-cluster strand; see
@@ -29,7 +29,7 @@ fail_or_empty() {
 }
 
 run_scallele() {
-    scAllele -b "$BAM" -g "$FASTA" -o "$PREF" -c "$CHR" -n 1 \
+    scAllele -b "$BAM" -g "$FASTA" -o "$PREF" -c "$CHR" -n "${SCALLELE_THREADS:-1}" \
         --run_mode "$RUNMODE" --strandedness "$STRAND" --DP "$MINCOV" --AC "$MINALT" \
         --AB "$MINEDIT" --min-base_quality "$QUAL" --min-map_quality "$QUAL"
 }

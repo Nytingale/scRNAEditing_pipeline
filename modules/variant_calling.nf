@@ -659,7 +659,7 @@ process SCALLELE_CHROM {
 
     # SCALLELE_STRICT=1: a scAllele failure fails the task (-> retry with more
     # memory) instead of silently yielding an empty contig.
-    SCALLELE_STRICT=1 scallele_chrom.sh ${chrom} ${bam} ${fasta} ${params.min_cov} ${params.min_alt} \\
+    SCALLELE_STRICT=1 SCALLELE_THREADS=${task.cpus} scallele_chrom.sh ${chrom} ${bam} ${fasta} ${params.min_cov} ${params.min_alt} \\
         ${params.min_edit_level} ${qual} ${strand_flag} ${params.scallele_run_mode}
     mv _snvs_${chrom}.txt ${pref}.snvs.txt
     mv _vcf_${chrom}.vcf.gz ${pref}.vcf.gz
