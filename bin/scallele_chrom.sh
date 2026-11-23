@@ -13,6 +13,7 @@
 # SCALLELE_STRICT=1 (set by SCALLELE_CHROM, one contig per Nextflow task): a
 # scAllele or VCF-parse failure exits non-zero so the task fails and retries
 # with more memory, instead of silently writing an empty contig.
+# scAllele runs through scallele_patched.py (stock scAllele 0.0.9.7 plus assets/scallele_patches).
 set -uo pipefail
 
 CHR="$1"; BAM="$2"; FASTA="$3"; MINCOV="$4"; MINALT="$5"; MINEDIT="$6"
@@ -29,7 +30,7 @@ fail_or_empty() {
 }
 
 run_scallele() {
-    scAllele -b "$BAM" -g "$FASTA" -o "$PREF" -c "$CHR" -n "${SCALLELE_THREADS:-1}" \
+    "$(dirname "$(command -v scAllele)")/python" "$(command -v scallele_patched.py)" -b "$BAM" -g "$FASTA" -o "$PREF" -c "$CHR" -n "${SCALLELE_THREADS:-1}" \
         --run_mode "$RUNMODE" --strandedness "$STRAND" --DP "$MINCOV" --AC "$MINALT" \
         --AB "$MINEDIT" --min-base_quality "$QUAL" --min-map_quality "$QUAL"
 }

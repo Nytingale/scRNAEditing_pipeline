@@ -1,0 +1,16 @@
+--- a/scAllele/gqv_bam_utils.py
++++ b/scAllele/gqv_bam_utils.py
+@@ -340,7 +340,12 @@
+ 
+ 	def get_sequence(self, g_start, g_end):
+ 		off = g_start - self.ext_gi.start + 2
+-		assert off >= 0 , f"VAR start {g_start} off {off} GI {self.gi} GI_ext {self.ext_gi}"
++		# Local patch (scRNAEditing, 2026-11-19): an indel at the left edge of a read cluster makes the tandem-repeat
++		# scan ask for bases left of the fetched window; 0.0.9.7 asserted off >= 0 and killed the whole contig.
++		# Bases outside the window are returned as 'N'; every request with off >= 0 is unchanged.
++		if off < 0:
++			n_pad = min(-off, g_end - g_start)
++			return "N" * n_pad + self.Seq_ext_full[0 : max(0, off + (g_end - g_start))]
+ 		return self.Seq_ext_full[off : off + (g_end - g_start)]
+ 
+ 	def genome_pos(self, relative_pos):

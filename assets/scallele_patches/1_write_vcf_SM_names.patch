@@ -1,0 +1,13 @@
+--- a/scAllele/gqv_utils.py
++++ b/scAllele/gqv_utils.py
+@@ -1332,7 +1332,9 @@
+ 
+             quals   = []
+             filters = []
+-            for SM in SM_names + ["merged_SM"]:
++            # scRNAEditing patch: look up per-sample QUAL/FILTER by sample name (0.0.9.7 used (bam, SM) tuples).
++            # Only with several BAMs: with one BAM, QUAL/FILTER stay those of the merged record, as in 0.0.9.7.
++            for SM in ([sm for (_bam, sm) in SM_names] if len(SM_names) > 1 else []) + ["merged_SM"]:
+                 try:
+                     quals.append(SAMPLE_dict[SM]["FEAT"]["QUAL"])
+                     filters.append(SAMPLE_dict[SM]["FEAT"]["FILTER"])

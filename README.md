@@ -522,7 +522,9 @@ Combine one software profile with one executor profile, e.g. `-profile singulari
 
 Resources are set per process label in `nextflow.config`. All callers share one allocation (12 cpus, 48 GB) so their runtimes are comparable; on SGE, memory is requested with `-l mem` (see the comments in `nextflow.config`).
 
-**scAllele threads.** scAllele runs one task per chromosome (`SCALLELE_CHROM`), and each task starts as many scAllele workers (`-n`) as it has cpus: 8 by default. On a test of two regions, 8 workers were 2.3-3.7x faster than 1 and gave the same VCF. To change the number, set the cpus in a config file given with `-c`, e.g. `process { withName: 'SCALLELE_CHROM' { cpus = 4 } }`.
+**scAllele threads.** scAllele runs one task per chromosome (`SCALLELE_CHROM`), and each task starts as many scAllele workers (`-n`) as it has cpus: 8 by default. On a test of two regions, 8 workers were 2.3-3.7x faster than 1 and gave the same VCF. Each task gets 32 GB (about 2-2.5 GB per worker), doubled on every retry. To change the number, set the cpus in a config file given with `-c`, e.g. `process { withName: 'SCALLELE_CHROM' { cpus = 4 } }`.
+
+**scAllele patches.** The pipeline runs the installed scAllele 0.0.9.7 through `bin/scallele_patched.py`, which copies the package into the task directory and applies the four fixes in `assets/scallele_patches/` to that copy; the environment itself is not changed. The fixes: per-sample QUAL and FILTER in the VCF when several BAMs are given (with one BAM, as in the pipeline, the VCF is unchanged); an indel at the left edge of a read cluster no longer stops the whole chromosome; one FASTA index per worker (with several workers, reopening the index for every read cluster failed now and then on a shared filesystem); and if a worker is killed (usually for memory), scAllele exits with `SCALLELE_WORKER_KILLED` instead of waiting for ever, so the task is retried with more memory. Each patch must match the installed source exactly, so another scAllele version stops with an error instead of running unpatched.
 
 ## Estimated run times
 

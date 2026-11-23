@@ -1,0 +1,54 @@
+--- a/scAllele/scAllele.py
++++ b/scAllele/scAllele.py
+@@ -24,6 +24,25 @@
+ from . import gqv_mutual_information  as MUTINFO
+ 
+ 
++# scRNAEditing patch: a pool worker killed by the cgroup OOM killer is silently replaced and its read cluster is
++# never returned, so imap_unordered waits forever. Workers only exit when killed (no maxtasksperchild), so any
++# change in the worker pids means a lost result: stop with a marker that the Nextflow errorStrategy retries on.
++def watched_imap(pool, worker_pids, func, args):
++	it = pool.imap_unordered(func, args)
++	while True:
++		try:
++			yield it.next(timeout = 30)
++		except StopIteration:
++			return
++		except multiprocessing.TimeoutError:
++			if {p.pid for p in pool._pool} != worker_pids:
++				sys.stderr.write("SCALLELE_WORKER_KILLED: a scAllele pool worker died (likely out of memory)\n")
++				sys.stderr.flush()
++				for p in pool._pool:
++					p.kill()
++				os._exit(137)
++
++
+ 
+ __version__ = "0.0.9.4"
+ 
+@@ -373,6 +392,7 @@
+ 
+ 	n = min(options.nodes, multiprocessing.cpu_count())
+ 	pool = multiprocessing.Pool(n)
++	worker_pids = {p.pid for p in pool._pool}
+ 
+ 
+ 	for Search_Region in Search_Regions:	
+@@ -395,7 +415,7 @@
+ 
+ 		raw_VAR_LIST = []
+ 
+-		for rc_output in pool.imap_unordered(process_read_cluster_1, ARGs): 
++		for rc_output in watched_imap(pool, worker_pids, process_read_cluster_1, ARGs): 
+ 			if rc_output is None: 
+ 				continue
+ 			
+@@ -429,7 +449,7 @@
+ 			for rc, SetOfVariants in RCs.items():
+ 				ARGs.append((rc, options, bam_file, SM, SetOfVariants, raw_VAR_LIST))
+ 
+-		for rc_VAR_LIST in pool.imap_unordered(process_read_cluster_2, ARGs): 
++		for rc_VAR_LIST in watched_imap(pool, worker_pids, process_read_cluster_2, ARGs): 
+ 			SOFTMAN.merge_copy(chrom_VAR_LIST, rc_VAR_LIST)
+ 
+ 

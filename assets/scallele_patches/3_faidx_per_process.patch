@@ -1,0 +1,21 @@
+--- a/scAllele/gqv_utils.py
++++ b/scAllele/gqv_utils.py
+@@ -1224,9 +1224,16 @@
+ 
+             
+ 
++# scRNAEditing patch: one Faidx per process instead of one per read cluster; with parallel workers the
++# per-cluster re-open of a large .fai intermittently failed on the shared filesystem (IndexNotFoundError).
++# Keyed by pid so forked workers never share the parent's file handle (shared offset breaks seek/read).
++_GENOME_FAIDX = {}
++
+ def read_genome_fasta(gf):
+-    fasta = pyfaidx.Faidx(gf)
+-    return fasta
++    key = (os.getpid(), gf)
++    if key not in _GENOME_FAIDX:
++        _GENOME_FAIDX[key] = pyfaidx.Faidx(gf)
++    return _GENOME_FAIDX[key]
+ 
+ 
+ def write_feat_file(var_list, FeatFile):

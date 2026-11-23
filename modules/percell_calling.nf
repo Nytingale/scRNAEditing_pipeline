@@ -191,7 +191,7 @@ process PERCELL_CALLING {
 
         elif [ "\$CALLER" = "scallele" ]; then
             ( eval "\$(conda shell.bash hook 2>/dev/null)"; mamba activate scAllele; \\
-              scAllele -b "\$CELL_BAM" -g "\$FASTA" -o "\$TMPWORK/sa" \\
+              "\$(dirname "\$(command -v scAllele)")/python" "\$(command -v scallele_patched.py)" -b "\$CELL_BAM" -g "\$FASTA" -o "\$TMPWORK/sa" \\
                   --run_mode Variant_Caller \\
                   --min-base_quality \$QUAL --min-map_quality \$QUAL 2>/dev/null ) || true
             if [ -f "\$TMPWORK/sa.vcf" ]; then
